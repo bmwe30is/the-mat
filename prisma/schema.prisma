@@ -1,0 +1,733 @@
+// This is your Prisma schema file
+// Replace the contents of prisma/schema.prisma with this
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ============================================================================
+// STUDIO & LOCATION MANAGEMENT
+// ============================================================================
+
+model Studio {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+  website     String?
+  phone       String?
+  email       String?
+  logo        String?
+
+  // Business settings
+  timezone String @default("America/Los_Angeles")
+  currency String @default("USD")
+
+  // Integration settings
+  arketaApiKey    String?
+  arketaStudioId  String?
+  stripeAccountId String?
+
+  // Multi-tenant security
+  apiKey String @unique @default(cuid())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  brands       Brand[]
+  locations    Location[]
+  users        StudioUser[]
+  packages     Package[]
+  pricing      PricingRule[]
+  overheads    OverheadCost[]
+  campaigns    MarketingCampaign[]
+  Subscription Subscription[]
+  ImportLog    ImportLog[]
+
+  @@map("studios")
+}
+
+model Brand {
+  id          String  @id @default(cuid())
+  studioId    String
+  name        String
+  slug        String
+  description String?
+  logo        String?
+  color       String? // Brand color for UI
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio     Studio      @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  locations  Location[]
+  classTypes ClassType[]
+
+  @@unique([studioId, slug])
+  @@map("brands")
+}
+
+model Location {
+  id       String  @id @default(cuid())
+  studioId String
+  brandId  String?
+  name     String
+  slug     String
+  address  String
+  city     String
+  state    String
+  zipCode  String
+  country  String  @default("US")
+
+  phone String?
+  email String?
+
+  // Integration IDs
+  arketaLocationId String?
+
+  // Operational settings
+  isActive Boolean @default(true)
+  capacity Int? // Default capacity if not set per class
+
+  // Coordinates for mapping
+  latitude  Float?
+  longitude Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio      Studio               @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  brand       Brand?               @relation(fields: [brandId], references: [id])
+  classes     Class[]
+  instructors InstructorLocation[]
+
+  @@unique([studioId, slug])
+  @@map("locations")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+model User {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  dateOfBirth DateTime?
+
+  // Profile
+  avatar           String?
+  emergencyContact String?
+  emergencyPhone   String?
+
+  // Integration tracking
+  arketaCustomerId String?
+
+  // Preferences
+  notifications Boolean @default(true)
+  timezone      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studioUsers        StudioUser[]
+  instructorProfiles InstructorProfile[]
+  bookings           Booking[]
+  payments           Payment[]
+  packagePurchases   PackagePurchase[]
+  subscriptions      Subscription[]
+  referrals          Referral[]          @relation("ReferredBy")
+  referredUsers      Referral[]          @relation("Referrer")
+  WaitlistEntry      WaitlistEntry[]
+
+  @@map("users")
+}
+
+model StudioUser {
+  id       String @id @default(cuid())
+  studioId String
+  userId   String
+
+  // Role management
+  role     StudioRole @default(CUSTOMER)
+  isActive Boolean    @default(true)
+
+  // Customer-specific fields
+  membershipType String?
+  memberSince    DateTime?
+  totalSpent     Decimal   @default(0) @db.Decimal(10, 2)
+  totalVisits    Int       @default(0)
+
+  // Acquisition tracking
+  acquisitionSource String? // "organic", "classpass", "referral", "social"
+  acquisitionCost   Decimal? @db.Decimal(10, 2)
+  campaignId        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio   Studio             @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  campaign MarketingCampaign? @relation(fields: [campaignId], references: [id])
+
+  @@unique([studioId, userId])
+  @@map("studio_users")
+}
+
+model InstructorProfile {
+  id             String   @id @default(cuid())
+  userId         String
+  bio            String?
+  certifications String[]
+  specialties    String[]
+  experience     Int? // years of experience
+
+  // Integration IDs
+  arketaInstructorId String?
+
+  // Compensation settings
+  defaultRate Decimal?         @db.Decimal(10, 2)
+  rateType    CompensationType @default(PER_CLASS)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user          User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locations     InstructorLocation[]
+  classes       Class[]
+  compensations InstructorCompensation[]
+
+  @@unique([userId])
+  @@map("instructor_profiles")
+}
+
+model InstructorLocation {
+  id           String @id @default(cuid())
+  instructorId String
+  locationId   String
+
+  isActive      Boolean  @default(true)
+  canTeachTypes String[] // Class type IDs they can teach at this location
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  location   Location          @relation(fields: [locationId], references: [id], onDelete: Cascade)
+
+  @@unique([instructorId, locationId])
+  @@map("instructor_locations")
+}
+
+// ============================================================================
+// CLASS MANAGEMENT
+// ============================================================================
+
+model ClassType {
+  id          String  @id @default(cuid())
+  brandId     String
+  name        String
+  slug        String
+  description String?
+  duration    Int // in minutes
+  difficulty  String? // "Beginner", "Intermediate", "Advanced"
+  category    String? // "Yoga", "HIIT", "Strength", etc.
+
+  // Integration IDs
+  arketaClassTypeId String?
+
+  // Default settings
+  defaultCapacity Int     @default(20)
+  color           String? // For calendar display
+
+  // Booking rules
+  advanceBookingDays Int @default(30)
+  cancellationHours  Int @default(24)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  brand   Brand         @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  classes Class[]
+  pricing PricingRule[]
+
+  @@unique([brandId, slug])
+  @@map("class_types")
+}
+
+model Class {
+  id           String  @id @default(cuid())
+  locationId   String
+  classTypeId  String
+  instructorId String?
+
+  // Integration IDs
+  arketaClassId String?
+
+  // Scheduling
+  startTime   DateTime
+  endTime     DateTime
+  isRecurring Boolean  @default(false)
+  recurringId String? // For series/recurring classes
+
+  // Capacity management
+  capacity       Int
+  memberCapacity Int? // Reserved spots for members
+  dropInCapacity Int? // Spots for drop-ins
+
+  // Status
+  status ClassStatus @default(SCHEDULED)
+  notes  String?
+
+  // Pricing (snapshot at time of class)
+  memberPrice Decimal @db.Decimal(10, 2)
+  dropInPrice Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  location     Location                @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  classType    ClassType               @relation(fields: [classTypeId], references: [id], onDelete: Cascade)
+  instructor   InstructorProfile?      @relation(fields: [instructorId], references: [id])
+  bookings     Booking[]
+  waitlist     WaitlistEntry[]
+  compensation InstructorCompensation?
+
+  @@map("classes")
+}
+
+// ============================================================================
+// BOOKING SYSTEM
+// ============================================================================
+
+model Booking {
+  id      String @id @default(cuid())
+  userId  String
+  classId String
+
+  // Integration IDs
+  arketaBookingId String?
+
+  // Booking details
+  status      BookingStatus @default(CONFIRMED)
+  bookedAt    DateTime      @default(now())
+  checkedInAt DateTime?
+
+  // Payment tracking
+  paymentMethod PaymentMethod
+  paidAmount    Decimal       @db.Decimal(10, 2)
+  refundAmount  Decimal?      @db.Decimal(10, 2)
+
+  // Package usage
+  packagePurchaseId String?
+  creditsUsed       Int?
+
+  // Notes
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  packagePurchase PackagePurchase? @relation(fields: [packagePurchaseId], references: [id])
+  payments        Payment[]
+
+  @@unique([userId, classId])
+  @@map("bookings")
+}
+
+model WaitlistEntry {
+  id       String @id @default(cuid())
+  userId   String
+  classId  String
+  position Int
+
+  joinedAt   DateTime  @default(now())
+  notifiedAt DateTime?
+
+  // Relations
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, classId])
+  @@map("waitlist_entries")
+}
+
+// ============================================================================
+// PACKAGES & SUBSCRIPTIONS
+// ============================================================================
+
+model Package {
+  id          String  @id @default(cuid())
+  studioId    String
+  name        String
+  description String?
+
+  // Integration IDs
+  arketaPackageId String?
+
+  // Package details
+  credits      Int // Number of classes included
+  price        Decimal @db.Decimal(10, 2)
+  validityDays Int // How long package is valid
+
+  // Restrictions
+  applicableClassTypes String[] // Empty = all class types
+  isActive             Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio    Studio            @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  purchases PackagePurchase[]
+
+  @@map("packages")
+}
+
+model PackagePurchase {
+  id        String @id @default(cuid())
+  userId    String
+  packageId String
+
+  // Integration IDs
+  arketaPurchaseId String?
+
+  // Purchase details
+  purchasePrice    Decimal @db.Decimal(10, 2)
+  creditsTotal     Int
+  creditsUsed      Int     @default(0)
+  creditsRemaining Int
+
+  purchasedAt DateTime @default(now())
+  expiresAt   DateTime
+
+  // Relations
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  package  Package   @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  bookings Booking[]
+
+  @@map("package_purchases")
+}
+
+model Subscription {
+  id       String @id @default(cuid())
+  userId   String
+  studioId String
+
+  // Integration IDs
+  arketaSubscriptionId String?
+  stripeSubscriptionId String?
+
+  // Subscription details
+  type         String // "unlimited", "8_per_month", etc.
+  price        Decimal @db.Decimal(10, 2)
+  billingCycle String // "monthly", "yearly"
+
+  // Status
+  status      SubscriptionStatus @default(ACTIVE)
+  startDate   DateTime
+  endDate     DateTime?
+  cancelledAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ============================================================================
+// PAYMENTS & FINANCIAL TRACKING
+// ============================================================================
+
+model Payment {
+  id        String  @id @default(cuid())
+  userId    String
+  bookingId String?
+
+  // Integration IDs
+  arketaPaymentId String?
+  stripePaymentId String?
+
+  // Payment details
+  amount    Decimal  @db.Decimal(10, 2)
+  fees      Decimal? @db.Decimal(10, 2)
+  netAmount Decimal? @db.Decimal(10, 2)
+  currency  String   @default("USD")
+
+  // Payment processing
+  provider   String // "stripe", "classpass", "arketa", "cash"
+  externalId String? // ID from payment provider
+  status     PaymentStatus @default(PENDING)
+
+  // Metadata
+  paymentMethod String? // "card", "bank", "cash"
+  description   String?
+
+  processedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking Booking? @relation(fields: [bookingId], references: [id])
+
+  @@map("payments")
+}
+
+model PricingRule {
+  id          String  @id @default(cuid())
+  studioId    String
+  classTypeId String? // null = applies to all class types
+
+  // Rule conditions
+  name      String
+  dayOfWeek Int[] // 0 = Sunday, 1 = Monday, etc.
+  timeStart String? // "09:00"
+  timeEnd   String? // "17:00"
+
+  // Pricing
+  memberPrice Decimal? @db.Decimal(10, 2)
+  dropInPrice Decimal? @db.Decimal(10, 2)
+
+  // Priority (higher number = higher priority)
+  priority Int @default(0)
+
+  isActive  Boolean   @default(true)
+  validFrom DateTime?
+  validTo   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio    Studio     @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  classType ClassType? @relation(fields: [classTypeId], references: [id])
+
+  @@map("pricing_rules")
+}
+
+// ============================================================================
+// PROFIT ANALYSIS & BUSINESS INTELLIGENCE
+// ============================================================================
+
+model InstructorCompensation {
+  id           String @id @default(cuid())
+  instructorId String
+  classId      String @unique
+
+  // Compensation details
+  type            CompensationType
+  baseAmount      Decimal          @db.Decimal(10, 2)
+  attendanceBonus Decimal?         @db.Decimal(10, 2)
+  totalAmount     Decimal          @db.Decimal(10, 2)
+
+  // Attendance data
+  studentsBooked   Int
+  studentsAttended Int
+
+  isPaid Boolean   @default(false)
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  instructor InstructorProfile @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+  class      Class             @relation(fields: [classId], references: [id], onDelete: Cascade)
+
+  @@map("instructor_compensations")
+}
+
+model OverheadCost {
+  id       String @id @default(cuid())
+  studioId String
+
+  // Cost details
+  category    String // "rent", "utilities", "insurance", "equipment", "marketing"
+  description String
+  amount      Decimal @db.Decimal(10, 2)
+
+  // Time period
+  month Int // 1-12
+  year  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  @@unique([studioId, category, month, year])
+  @@map("overhead_costs")
+}
+
+model MarketingCampaign {
+  id       String @id @default(cuid())
+  studioId String
+
+  // Campaign details
+  name        String
+  description String?
+  channel     String // "google", "facebook", "referral", "organic"
+
+  // Budget & performance
+  budget Decimal? @db.Decimal(10, 2)
+  spent  Decimal? @db.Decimal(10, 2)
+
+  startDate DateTime
+  endDate   DateTime?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio    Studio       @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  customers StudioUser[]
+
+  @@map("marketing_campaigns")
+}
+
+model Referral {
+  id         String @id @default(cuid())
+  referrerId String // Who made the referral
+  referredId String // Who was referred
+
+  // Referral tracking
+  code       String? // Referral code used
+  reward     Decimal? @db.Decimal(10, 2)
+  rewardPaid Boolean  @default(false)
+
+  // Conversion tracking
+  convertedAt DateTime? // When referred user made first purchase
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  referrer User @relation("Referrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  referred User @relation("ReferredBy", fields: [referredId], references: [id], onDelete: Cascade)
+
+  @@unique([referrerId, referredId])
+  @@map("referrals")
+}
+
+// ============================================================================
+// IMPORT TRACKING & AUDIT LOG
+// ============================================================================
+
+model ImportLog {
+  id       String  @id @default(cuid())
+  studioId String?
+
+  // Import details
+  source     String // "arketa", "stripe", "manual"
+  operation  String // "create", "update", "delete"
+  recordType String // "customer", "class", "booking", "payment"
+  recordId   String? // Our internal record ID
+  externalId String? // External system record ID
+
+  // Status
+  status       ImportStatus
+  errorMessage String?
+
+  // Data
+  importData Json? // Original imported data
+  changes    Json? // What changed (for updates)
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  studio Studio? @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  @@map("import_logs")
+}
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum StudioRole {
+  CUSTOMER
+  INSTRUCTOR
+  MANAGER
+  ADMIN
+  OWNER
+}
+
+enum CompensationType {
+  PER_CLASS
+  HOURLY
+  PERCENTAGE
+  FLAT_RATE_PLUS_BONUS
+}
+
+enum ClassStatus {
+  SCHEDULED
+  CANCELLED
+  COMPLETED
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+  NO_SHOW
+  ATTENDED
+  WAITLISTED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  CASH
+  PACKAGE_CREDIT
+  MEMBERSHIP
+  CLASSPASS
+  FREE
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+  PAUSED
+}
+
+enum ImportStatus {
+  SUCCESS
+  ERROR
+  WARNING
+  SKIPPED
+}
