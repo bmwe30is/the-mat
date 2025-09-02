@@ -85,9 +85,9 @@ export async function GET(request: NextRequest) {
 				? (classUtilization.reduce((acc, cls) => {
 						const attendanceRate = cls._count.bookings / cls.capacity;
 						return acc + attendanceRate;
-				  }, 0) /
+					}, 0) /
 						classUtilization.length) *
-				  100
+					100
 				: 0;
 
 		// Average class rating (mock for now - would need rating system)
@@ -114,14 +114,14 @@ export async function GET(request: NextRequest) {
 		});
 
 		const revenueGrowth = lastMonthRevenue._sum.netAmount
-			? (((totalRevenue._sum.netAmount || 0) -
-					(lastMonthRevenue._sum.netAmount || 0)) /
-					(lastMonthRevenue._sum.netAmount || 1)) *
-			  100
+			? (((Number(totalRevenue._sum.netAmount) || 0) -
+					(Number(lastMonthRevenue._sum.netAmount) || 0)) /
+					(Number(lastMonthRevenue._sum.netAmount) || 1)) *
+				100
 			: 0;
 
 		return NextResponse.json({
-			totalRevenue: totalRevenue._sum.netAmount || 0,
+			totalRevenue: Number(totalRevenue._sum.netAmount) || 0,
 			totalCustomers,
 			classUtilization: Math.round(utilizationRate * 100) / 100,
 			avgClassRating,
@@ -130,7 +130,7 @@ export async function GET(request: NextRequest) {
 	} catch (error) {
 		return NextResponse.json(
 			{
-				error: error.message,
+				error: error instanceof Error ? error.message : 'Unknown error',
 			},
 			{ status: 500 }
 		);

@@ -226,6 +226,24 @@ export async function POST(request: NextRequest) {
 					results.created++;
 				}
 
+				// Convert ArketaClass to ImportData format
+				const importData = {
+					id: classData.id,
+					name: classData.name,
+					description: classData.description,
+					instructor_id: classData.instructor_id,
+					instructor_name: classData.instructor_name,
+					instructor_email: classData.instructor_email,
+					start_time: classData.start_time,
+					end_time: classData.end_time,
+					capacity: classData.capacity,
+					price: classData.price,
+					location_id: classData.location_id,
+					location_name: classData.location_name,
+					class_type: classData.class_type,
+					status: classData.status,
+				};
+
 				await logger.log({
 					studioId: studio.id,
 					source: 'arketa',
@@ -234,12 +252,31 @@ export async function POST(request: NextRequest) {
 					recordId: existingClass?.id,
 					externalId: classData.id,
 					status: 'SUCCESS',
-					importData: classData,
+					importData,
 				});
 			} catch (error) {
 				results.errors++;
 				const errorMessage =
 					error instanceof Error ? error.message : 'Unknown error occurred';
+
+				// Convert ArketaClass to ImportData format for error logging
+				const importData = {
+					id: classData.id,
+					name: classData.name,
+					description: classData.description,
+					instructor_id: classData.instructor_id,
+					instructor_name: classData.instructor_name,
+					instructor_email: classData.instructor_email,
+					start_time: classData.start_time,
+					end_time: classData.end_time,
+					capacity: classData.capacity,
+					price: classData.price,
+					location_id: classData.location_id,
+					location_name: classData.location_name,
+					class_type: classData.class_type,
+					status: classData.status,
+				};
+
 				await logger.log({
 					studioId: studio.id,
 					source: 'arketa',
@@ -248,7 +285,7 @@ export async function POST(request: NextRequest) {
 					externalId: classData.id,
 					status: 'ERROR',
 					errorMessage: `Failed to process class: ${errorMessage}`,
-					importData: classData,
+					importData,
 				});
 			}
 		}

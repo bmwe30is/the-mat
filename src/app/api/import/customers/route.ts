@@ -9,6 +9,7 @@ import { validateStudioApiKey } from '@/middleware/apiAuth';
 import { upsertUser } from '@/utils/upsertHelpers';
 import { logger } from '@/utils/importLogger';
 import { prisma } from '@/lib/prisma';
+import { ImportChanges } from '@/types';
 
 export async function POST(request: NextRequest) {
 	// Validate studio API key
@@ -56,7 +57,7 @@ export async function POST(request: NextRequest) {
 				};
 
 				// Upsert user
-				const userResult = await upsertUser(userData, studio.id, 'arketa');
+				const userResult = await upsertUser(userData);
 
 				// Update studio user relationship with Arketa-specific data
 				await prisma.studioUser.upsert({
@@ -104,7 +105,7 @@ export async function POST(request: NextRequest) {
 					externalId: customerData.id,
 					status: 'SUCCESS',
 					importData: customerData,
-					changes: userResult.changes,
+					changes: userResult.changes as unknown as ImportChanges[],
 				});
 			} catch (error) {
 				results.errors++;
@@ -115,7 +116,7 @@ export async function POST(request: NextRequest) {
 					recordType: 'customer',
 					externalId: customerData.id,
 					status: 'ERROR',
-					errorMessage: `Failed to process customer: ${error.message}`,
+					errorMessage: `Failed to process customer: ${error instanceof Error ? error.message : 'Unknown error'}`,
 					importData: customerData,
 				});
 			}
@@ -135,13 +136,13 @@ export async function POST(request: NextRequest) {
 			operation: 'batch_import',
 			recordType: 'customer',
 			status: 'ERROR',
-			errorMessage: `Batch import failed: ${error.message}`,
+			errorMessage: `Batch import failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
 		});
 
 		return NextResponse.json(
 			{
 				success: false,
-				error: error.message,
+				error: error instanceof Error ? error.message : 'Unknown error',
 				logs: logger.getLogs(),
 			},
 			{ status: 500 }
@@ -181,7 +182,7 @@ export async function PUT(request: NextRequest) {
 			dateOfBirth: customer.date_of_birth,
 		};
 
-		const userResult = await upsertUser(userData, studio.id, 'arketa');
+		const userResult = await upsertUser(userData);
 
 		await prisma.studioUser.upsert({
 			where: {
@@ -228,7 +229,7 @@ export async function PUT(request: NextRequest) {
 		return NextResponse.json(
 			{
 				success: false,
-				error: error.message,
+				error: error instanceof Error ? error.message : 'Unknown error',
 			},
 			{ status: 500 }
 		);

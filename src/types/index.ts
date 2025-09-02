@@ -105,7 +105,7 @@ export interface ApiResponse<T> {
 	error?: {
 		code: string;
 		message: string;
-		details?: any;
+		details?: Record<string, unknown>;
 	};
 }
 
@@ -139,7 +139,7 @@ export interface StripeWebhookEvent {
 	id: string;
 	type: string;
 	data: {
-		object: any;
+		object: Record<string, unknown>;
 	};
 	created: number;
 }
@@ -156,3 +156,97 @@ export type StudioContextType = {
 	isLoading: boolean;
 	refreshMetrics: () => Promise<void>;
 };
+
+export interface DashboardOverviewData {
+	metrics: StudioMetrics;
+	topClasses: Array<{
+		name: string;
+		revenue: number;
+		bookings: number;
+		utilization: number;
+	}>;
+	instructorPerformance: Array<{
+		name: string;
+		classes: number;
+		revenue: number;
+		rating: number;
+	}>;
+	growthMetrics: {
+		revenueGrowth: string;
+		customerGrowth: string;
+		utilizationGrowth: string;
+	};
+}
+
+// Define specific interfaces for booking data
+export interface BookingData {
+	class_name: string;
+	class_start_time: string;
+	booking_status: string;
+	amount_paid?: number;
+	customer_email: string;
+	instructor_name?: string;
+	capacity?: number;
+}
+
+// Define interface for stored metrics
+export interface StoredMetrics {
+	total_revenue: number;
+	total_profit: number;
+	total_bookings: number;
+	total_attendees: number;
+	avg_transaction_size: number;
+	processing_fees: number;
+	utilization_rate: number;
+	profit_per_customer: number;
+}
+
+export interface UserData {
+	arketaCustomerId?: string;
+	email: string;
+	firstName: string;
+	lastName: string;
+	phone?: string;
+	dateOfBirth?: string | Date;
+	[key: string]: string | Date | undefined;
+}
+
+export interface UserRecord {
+	id: string;
+	email: string;
+	firstName: string;
+	lastName: string;
+	phone?: string;
+	dateOfBirth?: Date;
+	arketaCustomerId?: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+export interface ImportChanges {
+	field: string;
+	oldValue: string | number | boolean | Date | null;
+	newValue: string | number | boolean | Date | null;
+}
+
+export interface ImportData {
+	[key: string]: string | number | boolean | Date | null | undefined;
+}
+
+export interface ImportLogEntry {
+	studioId: string;
+	source: string;
+	operation: string;
+	recordType: string;
+	recordId?: string;
+	externalId?: string;
+	status: 'SUCCESS' | 'ERROR' | 'WARNING' | 'SKIPPED';
+	errorMessage?: string;
+	importData?: ImportData;
+	changes?: ImportChanges[];
+}
+
+export interface ScoredPayment extends StripePayment {
+	matchScore: number;
+	matchReason: string;
+}

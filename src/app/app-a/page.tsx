@@ -4,11 +4,8 @@ import React, { useState } from 'react';
 import {
 	BarChart3,
 	TrendingUp,
-	Users,
 	DollarSign,
 	Calendar,
-	Clock,
-	Star,
 	Download,
 } from 'lucide-react';
 
@@ -95,13 +92,25 @@ const StudioDashboard = () => {
 	const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 	const hours = ['6AM', '9AM', '12PM', '3PM', '6PM', '9PM', '12AM'];
 
-	const getHeatmapColor = (value) => {
+	const getHeatmapColor = (value: number) => {
 		if (value >= 80) return 'bg-red-200 text-red-800';
 		if (value >= 50) return 'bg-orange-200 text-orange-800';
 		return 'bg-yellow-200 text-yellow-800';
 	};
 
-	const MetricCard = ({ title, value, change, trend, icon: Icon }) => (
+	const MetricCard = ({
+		title,
+		value,
+		change,
+		trend,
+		icon: Icon,
+	}: {
+		title: string;
+		value: string;
+		change: string;
+		trend: string;
+		icon: React.ElementType;
+	}) => (
 		<div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
 			<div className="flex items-center justify-between mb-2">
 				<p className="text-sm font-medium text-gray-600 uppercase tracking-wide">
@@ -115,8 +124,8 @@ const StudioDashboard = () => {
 					trend === 'up'
 						? 'text-green-600'
 						: trend === 'down'
-						? 'text-red-600'
-						: 'text-gray-600'
+							? 'text-red-600'
+							: 'text-gray-600'
 				}`}
 			>
 				{change}
@@ -137,7 +146,7 @@ const StudioDashboard = () => {
 						</div>
 						<div className="flex items-center space-x-4">
 							<span className="text-gray-700 font-medium">
-								Sarah's Yoga Studio
+								Sarah&apos;s Yoga Studio
 							</span>
 							<div className="w-8 h-8 bg-gray-300 rounded-full"></div>
 						</div>
@@ -244,10 +253,10 @@ const StudioDashboard = () => {
 						</div>
 					</div>
 
-					{/* Today's Classes */}
+					{/* Today&apos;s Classes */}
 					<div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
 						<h3 className="text-xl font-semibold text-gray-900 mb-4">
-							Today's Classes
+							Today&apos;s Classes
 						</h3>
 						<div className="space-y-4 max-h-96 overflow-y-auto">
 							{todaysClasses.map((classItem, index) => (

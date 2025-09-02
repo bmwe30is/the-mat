@@ -5,6 +5,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { validateStudioApiKey } from '@/middleware/apiAuth';
 import { logger } from '@/utils/importLogger';
+import { ClassStatus } from '@prisma/client';
+
+// Type guard function for ClassStatus
+function isValidClassStatus(status: string): status is ClassStatus {
+	return ['SCHEDULED', 'CANCELLED', 'COMPLETED'].includes(status.toUpperCase());
+}
+
+// Helper function to safely convert status to ClassStatus
+function getClassStatus(status: string): ClassStatus {
+	const upperStatus = status?.toUpperCase();
+	if (isValidClassStatus(upperStatus)) {
+		return upperStatus as ClassStatus;
+	}
+	return 'SCHEDULED'; // Default fallback
+}
 
 export async function POST(request: NextRequest) {
 	const authResult = await validateStudioApiKey(request);
@@ -48,11 +63,13 @@ export async function POST(request: NextRequest) {
 
 				if (!location) {
 					logger.log({
+						studioId,
+						source: 'arketa-import',
 						operation: 'importClasses',
 						recordType: 'class',
 						externalId: classData.id,
-						status: 'error',
-						message: `Location not found: ${classData.location_name}`,
+						status: 'ERROR',
+						errorMessage: `Location not found: ${classData.location_name}`,
 					});
 					results.errors++;
 					continue;
@@ -122,21 +139,21 @@ export async function POST(request: NextRequest) {
 				});
 
 				if (existingClass) {
-					const updatedClass = await prisma.class.update({
+					await prisma.class.update({
 						where: { id: existingClass.id },
 						data: {
 							endTime: new Date(classData.end_time),
 							capacity: classData.capacity,
 							memberPrice: classData.price,
 							dropInPrice: classData.price,
-							status: classData.status.toUpperCase() as any,
+							status: getClassStatus(classData.status),
 							instructorId: instructor?.id,
 							updatedAt: new Date(),
 						},
 					});
 					results.updated++;
 				} else {
-					const newClass = await prisma.class.create({
+					await prisma.class.create({
 						data: {
 							locationId: location.id,
 							classTypeId: classType.id,
@@ -146,28 +163,34 @@ export async function POST(request: NextRequest) {
 							capacity: classData.capacity,
 							memberPrice: classData.price,
 							dropInPrice: classData.price,
-							status: (classData.status?.toUpperCase() || 'SCHEDULED') as any,
+							status: getClassStatus(classData.status),
 						},
 					});
 					results.created++;
 				}
 
 				logger.log({
+					studioId,
+					source: 'arketa-import',
 					operation: 'importClasses',
 					recordType: 'class',
 					externalId: classData.id,
-					status: 'success',
-					message: existingClass ? 'Class updated' : 'Class created',
+					status: 'SUCCESS',
+					errorMessage: existingClass ? 'Class updated' : 'Class created',
 				});
 			} catch (error) {
 				results.errors++;
+				const errorMessage =
+					error instanceof Error ? error.message : 'Unknown error occurred';
 				logger.log({
+					studioId,
+					source: 'arketa-import',
 					operation: 'importClasses',
 					recordType: 'class',
 					externalId: classData.id,
-					status: 'error',
-					message: `Failed to process class: ${error.message}`,
-					data: classData,
+					status: 'ERROR',
+					errorMessage: `Failed to process class: ${errorMessage}`,
+					importData: classData,
 				});
 			}
 		}
@@ -179,10 +202,12 @@ export async function POST(request: NextRequest) {
 			errors: logger.getErrors(),
 		});
 	} catch (error) {
+		const errorMessage =
+			error instanceof Error ? error.message : 'Unknown error occurred';
 		return NextResponse.json(
 			{
 				success: false,
-				error: error.message,
+				error: errorMessage,
 				logs: logger.getLogs(),
 			},
 			{ status: 500 }

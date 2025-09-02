@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
+import { supabase } from '@/lib/supabase';
 
 export async function GET() {
 	try {
@@ -8,7 +9,8 @@ export async function GET() {
 			select: {
 				id: true,
 				email: true,
-				name: true,
+				firstName: true,
+				lastName: true,
 				createdAt: true,
 			},
 		});
@@ -26,32 +28,32 @@ export async function GET() {
 export async function POST(request: NextRequest) {
 	try {
 		const body = await request.json();
-		const { email, name } = body;
+		const { email } = body;
 
 		if (!email) {
 			return NextResponse.json({ error: 'Email is required' }, { status: 400 });
 		}
 
 		// Example: Create user with Prisma
-		const user = await prisma.user.create({
-			data: {
-				email,
-				name,
-			},
-		});
+		// const user = await prisma.user.create({
+		// 	data: {
+		// 		email,
+		// 		name,
+		// 	},
+		// });
 
 		// Example: You could also use Supabase here for additional functionality
-		// const { data, error } = await supabase.auth.admin.createUser({
-		//   email,
-		//   password: 'temporary-password',
-		//   email_confirm: true
-		// })
-
-		return NextResponse.json({ user }, { status: 201 });
+		const { data, error } = await supabase.auth.admin.createUser({
+			email,
+			password: 'temporary-password',
+			email_confirm: true,
+		});
+		console.error('Error creating user:', error);
+		return NextResponse.json(data, { status: 201 });
 	} catch (error) {
 		console.error('Error creating user:', error);
 		return NextResponse.json(
-			{ error: 'Failed to create user' },
+			{ error: 'Failed to create user' + error },
 			{ status: 500 }
 		);
 	}

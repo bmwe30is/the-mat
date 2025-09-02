@@ -1,6 +1,11 @@
 // lib/matching/payment-matcher.ts
 import { createClient } from '@supabase/supabase-js';
-import type { StripePayment, Booking, MatchedTransaction } from '@/types';
+import type {
+	StripePayment,
+	Booking,
+	MatchedTransaction,
+	ScoredPayment,
+} from '@/types';
 
 const supabase = createClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -76,13 +81,8 @@ export class PaymentMatchingService {
 	private static selectBestMatch(
 		booking: Booking,
 		payments: StripePayment[]
-	): StripePayment | null {
+	): ScoredPayment | null {
 		if (payments.length === 0) return null;
-
-		interface ScoredPayment extends StripePayment {
-			matchScore: number;
-			matchReason: string;
-		}
 
 		const scoredPayments: ScoredPayment[] = payments.map((payment) => {
 			let score = 0;

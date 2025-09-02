@@ -60,7 +60,7 @@ export class StripeConnectService {
 	/**
 	 * Sync payment data for a connected studio
 	 */
-	static async syncPaymentData(studioId: string, accountId: string) {
+	static async syncPaymentData(studioId: string) {
 		try {
 			// Get studio's access token (decrypt in production)
 			const { data: studio } = await supabase
@@ -73,16 +73,10 @@ export class StripeConnectService {
 				throw new Error('No Stripe access token found');
 			}
 
-			// Create Stripe client for connected account
-			const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
-				apiVersion: '2023-10-16',
-				stripeAccount: accountId,
-			});
-
 			// Fetch payments from the last 30 days (adjust as needed)
 			const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
 
-			const charges = await connectedStripe.charges.list({
+			const charges = await stripe.charges.list({
 				limit: 100,
 				created: { gte: thirtyDaysAgo },
 				expand: ['data.balance_transaction'],
@@ -93,8 +87,14 @@ export class StripeConnectService {
 				studio_id: studioId,
 				stripe_payment_id: charge.id,
 				amount: charge.amount,
-				fee: charge.balance_transaction?.fee || 0,
-				net_amount: charge.balance_transaction?.net || charge.amount,
+				fee:
+					typeof charge.balance_transaction === 'string'
+						? charge.balance_transaction.toString()
+						: charge.balance_transaction?.fee || 0,
+				net_amount:
+					typeof charge.balance_transaction === 'string'
+						? charge.balance_transaction.toString()
+						: charge.balance_transaction?.fee || 0,
 				currency: charge.currency,
 				customer_email: charge.billing_details?.email || charge.receipt_email,
 				description: charge.description || '',
@@ -102,7 +102,11 @@ export class StripeConnectService {
 				status: charge.status,
 				created_at: new Date(charge.created * 1000).toISOString(),
 				processed_at: charge.balance_transaction
-					? new Date(charge.balance_transaction.created * 1000).toISOString()
+					? new Date(
+							typeof charge.balance_transaction === 'string'
+								? charge.balance_transaction.toString()
+								: charge.balance_transaction?.created * 1000
+						).toISOString()
 					: null,
 			}));
 
