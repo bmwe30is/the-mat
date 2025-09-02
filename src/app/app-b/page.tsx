@@ -6,11 +6,9 @@ import {
 	TrendingUp,
 	DollarSign,
 	MapPin,
-	Clock,
 	Star,
 	Settings,
 	Plus,
-	Filter,
 	Search,
 	BarChart3,
 	UserCheck,
@@ -135,7 +133,19 @@ const StudioDashboard = () => {
 		{ id: 'settings', name: 'Settings', icon: Settings },
 	];
 
-	const MetricCard = ({ icon: Icon, title, value, change, prefix = '' }) => (
+	const MetricCard = ({
+		icon: Icon,
+		title,
+		value,
+		change,
+		prefix = '',
+	}: {
+		icon: React.ElementType;
+		title: string;
+		value: string;
+		change: string;
+		prefix: string;
+	}) => (
 		<div className="bg-white rounded-lg shadow-sm border p-6">
 			<div className="flex items-center justify-between">
 				<div>
@@ -168,35 +178,37 @@ const StudioDashboard = () => {
 					title="Monthly Revenue"
 					value={mockData.metrics.totalRevenue.toLocaleString()}
 					prefix="$"
-					change={mockData.metrics.monthlyGrowth}
+					change={mockData.metrics.monthlyGrowth.toLocaleString()}
 				/>
 				<MetricCard
 					icon={Users}
 					title="Active Customers"
-					value={mockData.metrics.totalCustomers}
-					change={8.2}
+					value={mockData.metrics.totalCustomers.toLocaleString()}
+					change={(8.2).toLocaleString()}
+					prefix=""
 				/>
 				<MetricCard
 					icon={Calendar}
 					title="Class Utilization"
-					value={mockData.metrics.classUtilization}
+					value={mockData.metrics.classUtilization.toLocaleString()}
 					prefix=""
-					change={5.1}
+					change={(5.1).toLocaleString()}
 				/>
 				<MetricCard
 					icon={Star}
 					title="Avg Class Rating"
-					value={mockData.metrics.avgClassRating}
-					change={2.3}
+					value={mockData.metrics.avgClassRating.toLocaleString()}
+					change={(2.3).toLocaleString()}
+					prefix=""
 				/>
 			</div>
 
-			{/* Today's Classes & Recent Activity */}
+			{/* Today&apos;s Classes & Recent Activity */}
 			<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 				<div className="bg-white rounded-lg shadow-sm border">
 					<div className="px-6 py-4 border-b border-gray-200">
 						<h3 className="text-lg font-semibold text-gray-900">
-							Today's Classes
+							Today&apos;s Classes
 						</h3>
 					</div>
 					<div className="p-6">
@@ -223,8 +235,8 @@ const StudioDashboard = () => {
 												cls.booked / cls.capacity > 0.8
 													? 'bg-green-200'
 													: cls.booked / cls.capacity > 0.5
-													? 'bg-yellow-200'
-													: 'bg-red-200'
+														? 'bg-yellow-200'
+														: 'bg-red-200'
 											}`}
 										>
 											<div
@@ -232,8 +244,8 @@ const StudioDashboard = () => {
 													cls.booked / cls.capacity > 0.8
 														? 'bg-green-500'
 														: cls.booked / cls.capacity > 0.5
-														? 'bg-yellow-500'
-														: 'bg-red-500'
+															? 'bg-yellow-500'
+															: 'bg-red-500'
 												}`}
 												style={{
 													width: `${(cls.booked / cls.capacity) * 100}%`,
@@ -359,7 +371,7 @@ const StudioDashboard = () => {
 		</div>
 	);
 
-	const renderPlaceholder = (tabName) => (
+	const renderPlaceholder = (tabName: string) => (
 		<div className="bg-white rounded-lg shadow-sm border p-8 text-center">
 			<h2 className="text-2xl font-bold text-gray-900 mb-4">
 				{tabName} Management

@@ -1,16 +1,20 @@
 // lib/analytics/dashboard-service.ts
-import type { ApiResponse, StudioMetrics } from '@/types';
+import type {
+	ApiResponse,
+	StudioMetrics,
+	DashboardOverviewData,
+} from '@/types';
 import { MetricsCalculator } from './analytics-calculator';
 import { supabase } from '@/lib/supabase';
 
 export class DashboardService {
 	/**
-	 * Get dashboard overview data for a studio
+	 * Get comprehensive dashboard overview
 	 */
 	static async getDashboardOverview(
 		studioId: string,
 		dateRange: { start: string; end: string }
-	): Promise<ApiResponse<any>> {
+	): Promise<ApiResponse<DashboardOverviewData>> {
 		try {
 			// Get current period metrics
 			const currentMetrics = await MetricsCalculator.calculateStudioMetrics(
@@ -55,13 +59,27 @@ export class DashboardService {
 				dateRange
 			);
 
+			// Transform instructor performance to match expected format
+			const transformedInstructorPerformance = instructorPerformance.map(
+				(metrics) => ({
+					name: metrics.instructor_name,
+					classes: metrics.total_classes,
+					revenue: metrics.total_revenue,
+					rating: 0, // Default rating since it's not calculated yet
+				})
+			);
+
 			return {
 				success: true,
 				data: {
 					metrics: currentMetrics,
-					changes,
 					topClasses,
-					instructorPerformance,
+					instructorPerformance: transformedInstructorPerformance,
+					growthMetrics: {
+						revenueGrowth: changes.revenue,
+						customerGrowth: changes.bookings,
+						utilizationGrowth: changes.utilization,
+					},
 				},
 			};
 		} catch (error) {

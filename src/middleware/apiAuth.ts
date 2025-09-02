@@ -32,6 +32,7 @@ export async function validateStudioApiKey(request: NextRequest) {
 
 		return { valid: true, studio };
 	} catch (error) {
+		console.error('Database error during authentication:', error);
 		return { error: 'Database error during authentication', status: 500 };
 	}
 }

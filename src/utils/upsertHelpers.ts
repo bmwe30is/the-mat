@@ -1,15 +1,35 @@
 // utils/upsertHelpers.ts - Updated for Arketa integration
+import { prisma } from '@/lib/prisma';
+import { UserData, UserRecord } from '@/types';
+import { User } from '@prisma/client';
+
 export interface UpsertResult<T> {
 	record: T;
 	isNew: boolean;
 	changes?: string[];
 }
 
+// Helper function to transform Prisma user record to UserRecord interface
+// Converts null values to undefined to match TypeScript conventions
+function transformPrismaUserToUserRecord(prismaUser: User): UserRecord {
+	return {
+		id: prismaUser.id,
+		email: prismaUser.email,
+		firstName: prismaUser.firstName,
+		lastName: prismaUser.lastName,
+		phone: prismaUser.phone ?? undefined,
+		dateOfBirth: prismaUser.dateOfBirth ?? undefined,
+		arketaCustomerId: prismaUser.arketaCustomerId ?? undefined,
+		createdAt: prismaUser.createdAt,
+		updatedAt: prismaUser.updatedAt,
+	};
+}
+
 export async function upsertUser(
-	userData: any,
-	studioId: string,
-	source: string = 'arketa'
-): Promise<UpsertResult<any>> {
+	userData: UserData
+	// studioId: string,
+	// source: string = 'arketa'
+): Promise<UpsertResult<UserRecord>> {
 	const {
 		arketaCustomerId,
 		email,
@@ -17,7 +37,7 @@ export async function upsertUser(
 		lastName,
 		phone,
 		dateOfBirth,
-		...rest
+		// ...rest
 	} = userData;
 
 	try {
@@ -29,60 +49,72 @@ export async function upsertUser(
 			});
 		}
 
-		// Fallback to email if no Arketa ID match
-		if (!existingUser && email) {
+		// If not found by Arketa ID, try by email
+		if (!existingUser) {
 			existingUser = await prisma.user.findUnique({
 				where: { email },
 			});
 		}
 
 		const changes: string[] = [];
+		let isNew = false;
 
 		if (existingUser) {
-			// Track changes for audit
-			if (existingUser.firstName !== firstName) changes.push('firstName');
-			if (existingUser.lastName !== lastName) changes.push('lastName');
-			if (existingUser.phone !== phone) changes.push('phone');
-
 			// Update existing user
-			const updatedUser = await prisma.user.update({
-				where: { id: existingUser.id },
-				data: {
-					firstName: firstName || existingUser.firstName,
-					lastName: lastName || existingUser.lastName,
-					phone: phone || existingUser.phone,
-					dateOfBirth: dateOfBirth
-						? new Date(dateOfBirth)
-						: existingUser.dateOfBirth,
-					arketaCustomerId: arketaCustomerId || existingUser.arketaCustomerId,
-					updatedAt: new Date(),
-				},
-			});
+			const updateData: Partial<UserRecord> = {};
 
-			// Ensure studio relationship exists
-			await prisma.studioUser.upsert({
-				where: {
-					studioId_userId: {
-						studioId,
-						userId: existingUser.id,
-					},
-				},
-				update: {
-					acquisitionSource: source,
-					updatedAt: new Date(),
-				},
-				create: {
-					studioId,
-					userId: existingUser.id,
-					role: 'CUSTOMER',
-					acquisitionSource: source,
-				},
-			});
+			if (firstName !== existingUser.firstName) {
+				updateData.firstName = firstName;
+				changes.push(`firstName: ${existingUser.firstName} → ${firstName}`);
+			}
+
+			if (lastName !== existingUser.lastName) {
+				updateData.lastName = lastName;
+				changes.push(`lastName: ${existingUser.lastName} → ${lastName}`);
+			}
+
+			if (phone && phone !== existingUser.phone) {
+				updateData.phone = phone;
+				changes.push(`phone: ${existingUser.phone} → ${phone}`);
+			}
+
+			if (dateOfBirth) {
+				const dobDate =
+					typeof dateOfBirth === 'string' ? new Date(dateOfBirth) : dateOfBirth;
+				if (dobDate.getTime() !== existingUser.dateOfBirth?.getTime()) {
+					updateData.dateOfBirth = dobDate;
+					changes.push(`dateOfBirth: ${existingUser.dateOfBirth} → ${dobDate}`);
+				}
+			}
+
+			if (
+				arketaCustomerId &&
+				arketaCustomerId !== existingUser.arketaCustomerId
+			) {
+				updateData.arketaCustomerId = arketaCustomerId;
+				changes.push(
+					`arketaCustomerId: ${existingUser.arketaCustomerId} → ${arketaCustomerId}`
+				);
+			}
+
+			// Only update if there are changes
+			if (Object.keys(updateData).length > 0) {
+				updateData.updatedAt = new Date();
+				const updatedUser = await prisma.user.update({
+					where: { id: existingUser.id },
+					data: updateData,
+				});
+				return {
+					record: transformPrismaUserToUserRecord(updatedUser),
+					isNew: false,
+					changes,
+				};
+			}
 
 			return {
-				record: updatedUser,
+				record: transformPrismaUserToUserRecord(existingUser),
 				isNew: false,
-				changes,
+				changes: [],
 			};
 		} else {
 			// Create new user
@@ -92,38 +124,26 @@ export async function upsertUser(
 					firstName,
 					lastName,
 					phone,
-					dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+					dateOfBirth: dateOfBirth
+						? typeof dateOfBirth === 'string'
+							? new Date(dateOfBirth)
+							: dateOfBirth
+						: undefined,
 					arketaCustomerId,
-					...rest,
 				},
 			});
-
-			// Create studio relationship
-			await prisma.studioUser.create({
-				data: {
-					studioId,
-					userId: newUser.id,
-					role: 'CUSTOMER',
-					acquisitionSource: source,
-				},
-			});
-
+			isNew = true;
+			changes.push('User created');
 			return {
-				record: newUser,
-				isNew: true,
+				record: transformPrismaUserToUserRecord(newUser),
+				isNew,
+				changes,
 			};
 		}
 	} catch (error) {
-		await logger.log({
-			studioId,
-			source,
-			operation: 'upsert',
-			recordType: 'user',
-			externalId: arketaCustomerId,
-			status: 'ERROR',
-			errorMessage: `Failed to upsert user: ${error.message}`,
-			importData: userData,
-		});
-		throw error;
+		console.error('Error upserting user:', error);
+		throw new Error(
+			`Failed to upsert user: ${error instanceof Error ? error.message : 'Unknown error'}`
+		);
 	}
 }

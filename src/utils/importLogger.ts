@@ -1,16 +1,6 @@
 // utils/importLogger.ts - Enhanced for multi-tenant
-export interface ImportLogEntry {
-	studioId: string;
-	source: string;
-	operation: string;
-	recordType: string;
-	recordId?: string;
-	externalId?: string;
-	status: 'SUCCESS' | 'ERROR' | 'WARNING' | 'SKIPPED';
-	errorMessage?: string;
-	importData?: any;
-	changes?: any;
-}
+import { prisma } from '@/lib/prisma';
+import { ImportLogEntry } from '@/types';
 
 class ImportLogger {
 	private logs: ImportLogEntry[] = [];
@@ -32,7 +22,6 @@ class ImportLogger {
 					status: entry.status,
 					errorMessage: entry.errorMessage,
 					importData: entry.importData,
-					changes: entry.changes,
 				},
 			});
 		} catch (dbError) {
@@ -44,8 +33,8 @@ class ImportLogger {
 			entry.status === 'ERROR'
 				? 'error'
 				: entry.status === 'WARNING'
-				? 'warn'
-				: 'info';
+					? 'warn'
+					: 'info';
 		console[level](
 			`[${entry.source}] ${entry.recordType}:`,
 			entry.errorMessage || 'Success',

@@ -90,6 +90,7 @@ export async function GET(request: NextRequest) {
 				rating: Math.round(rating * 10) / 10,
 				revenue: totalRevenue,
 				specialties: instructor.specialties,
+				avgAttendance,
 			};
 		});
 
@@ -99,7 +100,7 @@ export async function GET(request: NextRequest) {
 	} catch (error) {
 		return NextResponse.json(
 			{
-				error: error.message,
+				error: error instanceof Error ? error.message : 'Unknown error',
 			},
 			{ status: 500 }
 		);

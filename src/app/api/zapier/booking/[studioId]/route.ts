@@ -5,10 +5,10 @@ import type { ZapierBookingWebhook } from '@/types';
 
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { studioId: string } }
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
-		const studioId = params.studioId;
+		const { studioId } = await params;
 		const body = await request.text();
 		const signature = request.headers.get('x-zapier-signature') || '';
 
@@ -67,10 +67,11 @@ export async function POST(
 // GET endpoint to provide webhook URL for studio setup
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { studioId: string } }
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
-		const webhookUrl = ZapierWebhookService.generateWebhookUrl(params.studioId);
+		const { studioId } = await params;
+		const webhookUrl = ZapierWebhookService.generateWebhookUrl(studioId);
 
 		return NextResponse.json({
 			success: true,
@@ -85,6 +86,7 @@ export async function GET(
 				error: {
 					code: 'URL_GENERATION_FAILED',
 					message: 'Failed to generate webhook URL',
+					error: error,
 				},
 			},
 			{ status: 500 }

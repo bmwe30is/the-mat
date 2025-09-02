@@ -4,6 +4,8 @@ import type {
 	StudioMetrics,
 	InstructorMetrics,
 	MatchedTransaction,
+	BookingData,
+	StoredMetrics,
 } from '@/types';
 
 const supabase = createClient(
@@ -108,7 +110,7 @@ export class MetricsCalculator {
 	 */
 	private static computeBasicMetrics(
 		transactions: MatchedTransaction[],
-		bookings: any[]
+		bookings: BookingData[]
 	) {
 		const totalRevenue = transactions.reduce(
 			(sum, t) => sum + t.amount / 100,
@@ -155,7 +157,7 @@ export class MetricsCalculator {
 	 */
 	private static computeInstructorSpecificMetrics(
 		transactions: MatchedTransaction[],
-		bookings: any[]
+		bookings: BookingData[]
 	) {
 		// Group bookings by class to count unique classes
 		const uniqueClasses = new Set(
@@ -196,12 +198,12 @@ export class MetricsCalculator {
 	}
 
 	/**
-	 * Store calculated metrics in database for caching
+	 * Store calculated metrics in database
 	 */
 	private static async storeCalculatedMetrics(
 		studioId: string,
 		date: string,
-		metrics: any
+		metrics: StoredMetrics
 	) {
 		try {
 			await supabase.from('studio_metrics').upsert(

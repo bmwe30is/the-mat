@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
 		if (result.success && result.accountId) {
 			// Trigger initial payment sync
-			await StripeConnectService.syncPaymentData(state, result.accountId);
+			await StripeConnectService.syncPaymentData(state);
 
 			// Redirect to success page
 			return NextResponse.redirect(

@@ -18,10 +18,7 @@ export async function POST(request: NextRequest) {
 			);
 		}
 
-		const result = await StripeConnectService.syncPaymentData(
-			studioId,
-			accountId
-		);
+		const result = await StripeConnectService.syncPaymentData(studioId);
 
 		return NextResponse.json({
 			success: true,

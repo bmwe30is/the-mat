@@ -1,3 +1,4 @@
+'use client';
 import React, { useState } from 'react';
 import {
 	CreditCard,
@@ -14,7 +15,14 @@ const StripeConnectOnboarding = () => {
 	const [currentStep, setCurrentStep] = useState(1);
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [connectionStatus, setConnectionStatus] = useState('disconnected'); // disconnected, connecting, connected, error
-	const [stripeAccountInfo, setStripeAccountInfo] = useState(null);
+	const [stripeAccountInfo, setStripeAccountInfo] = useState({
+		accountId: '',
+		businessName: '',
+		email: '',
+		country: '',
+		created: '',
+		chargesEnabled: false,
+	});
 
 	// Simulate Stripe Connect OAuth flow
 	const handleStripeConnect = async () => {
@@ -30,19 +38,21 @@ const StripeConnectOnboarding = () => {
 			// Simulate OAuth success
 			setTimeout(() => {
 				setStripeAccountInfo({
-					account_id: 'acct_studio_sarah_yoga',
-					business_name: "Sarah's Yoga Studio",
+					accountId: 'acct_studio_sarah_yoga',
+					businessName: 'Sarah&apos;s Yoga Studio',
 					email: 'sarah@sarahsyoga.com',
 					country: 'US',
 					created: new Date().toISOString(),
-					charges_enabled: true,
+					chargesEnabled: true,
 				});
 				setConnectionStatus('connected');
 				setIsConnecting(false);
 				setCurrentStep(3);
 			}, 3000);
 		} catch (error) {
-			setConnectionStatus('error');
+			setConnectionStatus(
+				error instanceof Error ? error.message : 'Unknown error'
+			);
 			setIsConnecting(false);
 		}
 	};
@@ -102,8 +112,8 @@ const StripeConnectOnboarding = () => {
 						Successfully Connected!
 					</h2>
 					<p className="text-green-700 mb-6">
-						Your Stripe account is now connected. We're importing your payment
-						history and will have insights ready shortly.
+						Your Stripe account is now connected. We&apos;re importing your
+						payment history and will have insights ready shortly.
 					</p>
 
 					{stripeAccountInfo && (
@@ -115,13 +125,13 @@ const StripeConnectOnboarding = () => {
 								<div>
 									<span className="text-gray-600">Business Name:</span>
 									<div className="font-medium">
-										{stripeAccountInfo.business_name}
+										{stripeAccountInfo.businessName}
 									</div>
 								</div>
 								<div>
 									<span className="text-gray-600">Account ID:</span>
 									<div className="font-mono text-xs">
-										{stripeAccountInfo.account_id}
+										{stripeAccountInfo.accountId}
 									</div>
 								</div>
 								<div>
@@ -220,7 +230,7 @@ const StripeConnectOnboarding = () => {
 					</h2>
 					<p className="text-lg text-gray-700 mb-8">
 						Get accurate profit insights by connecting your existing Stripe
-						account. We'll analyze your payment history to show you exactly
+						account. We&apos;ll analyze your payment history to show you exactly
 						where your money comes from.
 					</p>
 
@@ -267,7 +277,8 @@ const StripeConnectOnboarding = () => {
 								Ready to Connect?
 							</h3>
 							<p className="text-gray-600">
-								This will redirect you to Stripe's secure authorization page
+								This will redirect you to Stripe&apos;s secure authorization
+								page
 							</p>
 						</div>
 
@@ -332,7 +343,7 @@ const StripeConnectOnboarding = () => {
 					{/* Sample Data Preview */}
 					<div className="mt-8 bg-white rounded-lg border border-gray-200 p-6">
 						<h4 className="font-semibold text-gray-900 mb-4">
-							Preview: What You'll See
+							Preview: What You&apos;ll See
 						</h4>
 						<div className="grid grid-cols-2 gap-4 text-sm">
 							<div className="p-3 bg-green-50 rounded">

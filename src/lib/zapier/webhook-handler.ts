@@ -30,13 +30,13 @@ export class ZapierWebhookService {
 					webhookData.customer_last_name || ''
 				}`.trim(),
 				class_name: webhookData.class_name,
-				instructor_name: webhookData.instructor_name || null,
+				instructor_name: webhookData.instructor_name || undefined,
 				class_start_time: webhookData.class_start_time,
 				class_end_time: webhookData.class_end_time,
 				booking_status: this.normalizeBookingStatus(webhookData.booking_status),
-				amount_paid: webhookData.amount_paid || null,
+				amount_paid: webhookData.amount_paid || undefined,
 				booking_created_at: webhookData.booking_created_at,
-				class_attended_at: null, // Will be updated later
+				class_attended_at: undefined, // Will be updated later
 			};
 
 			// Upsert booking to database
@@ -137,6 +137,8 @@ export class ZapierWebhookService {
 		// Implement webhook signature validation
 		// For Zapier, you might use a shared secret or API key
 
+		console.log('zapier webhook payload', payload);
+		console.log('zapier webhook signature', signature);
 		if (!process.env.ZAPIER_WEBHOOK_SECRET) {
 			console.warn('ZAPIER_WEBHOOK_SECRET not configured');
 			return true; // Allow for development
