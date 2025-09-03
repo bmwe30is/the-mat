@@ -65,6 +65,9 @@ export async function POST(
 }
 
 // GET endpoint to provide webhook URL for studio setup
+// Used by the UI to display the webhook URL to the user when they click "Connect Zapier"
+// Need to build some logic to build a unique studio ID
+
 export async function GET(
 	request: NextRequest,
 	{ params }: { params: Promise<{ studioId: string }> }
