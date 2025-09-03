@@ -1,6 +1,10 @@
 // lib/zapier/webhook-handler.ts
 import { createClient } from '@supabase/supabase-js';
-import type { ZapierBookingWebhook, Booking } from '@/types';
+import type {
+	ZapierBookingWebhook,
+	WebhookBooking,
+	PrismaBookingStatus,
+} from '@/types';
 
 const supabase = createClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,7 +26,7 @@ export class ZapierWebhookService {
 			}
 
 			// Transform webhook data to internal booking format
-			const booking: Omit<Booking, 'id'> = {
+			const booking: Omit<WebhookBooking, 'id'> = {
 				studio_id: studioId,
 				external_booking_id: webhookData.booking_id,
 				customer_email: webhookData.customer_email.toLowerCase().trim(),
@@ -73,30 +77,28 @@ export class ZapierWebhookService {
 	/**
 	 * Normalize booking status from various formats
 	 */
-	private static normalizeBookingStatus(
-		status: string
-	): 'confirmed' | 'cancelled' | 'no_show' | 'attended' {
+	private static normalizeBookingStatus(status: string): PrismaBookingStatus {
 		const normalizedStatus = status.toLowerCase().trim();
 
 		switch (normalizedStatus) {
 			case 'confirmed':
 			case 'booked':
 			case 'active':
-				return 'confirmed';
+				return 'CONFIRMED';
 			case 'cancelled':
 			case 'canceled':
 			case 'cancelled_by_customer':
-				return 'cancelled';
+				return 'CANCELLED';
 			case 'no_show':
 			case 'no-show':
 			case 'missed':
-				return 'no_show';
+				return 'NO_SHOW';
 			case 'attended':
 			case 'completed':
 			case 'checked_in':
-				return 'attended';
+				return 'ATTENDED';
 			default:
-				return 'confirmed'; // Default fallback
+				return 'CONFIRMED'; // Default fallback
 		}
 	}
 
