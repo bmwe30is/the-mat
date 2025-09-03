@@ -34,7 +34,7 @@ export class ZapierWebhookService {
 				class_start_time: webhookData.class_start_time,
 				class_end_time: webhookData.class_end_time,
 				booking_status: this.normalizeBookingStatus(webhookData.booking_status),
-				amount_paid: webhookData.amount_paid || undefined,
+				paidAmount: webhookData.amount_paid || undefined,
 				booking_created_at: webhookData.booking_created_at,
 				class_attended_at: undefined, // Will be updated later
 			};

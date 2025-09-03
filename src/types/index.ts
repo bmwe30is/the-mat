@@ -35,7 +35,58 @@ export interface StripePayment {
 	processed_at?: string;
 }
 
-// Booking data from Zapier/Arketa
+// Prisma BookingStatus enum values
+export type PrismaBookingStatus =
+	| 'CONFIRMED'
+	| 'CANCELLED'
+	| 'NO_SHOW'
+	| 'ATTENDED'
+	| 'WAITLISTED';
+
+// Webhook booking data from Zapier/Arketa (flattened structure)
+export interface WebhookBooking {
+	id: string;
+	studio_id: string;
+	external_booking_id: string; // Arketa booking ID
+	customer_email: string;
+	customer_name: string;
+	class_name: string;
+	instructor_name?: string;
+	class_start_time: string;
+	class_end_time: string;
+	booking_status: PrismaBookingStatus;
+	paidAmount?: number;
+	booking_created_at: string;
+	class_attended_at?: string;
+}
+
+// Prisma-compatible booking structure (matches database schema)
+export interface PrismaBooking {
+	id: string;
+	userId: string;
+	classId: string;
+	arketaBookingId?: string;
+	status: PrismaBookingStatus;
+	bookedAt: Date;
+	checkedInAt?: Date;
+	paymentMethod:
+		| 'CREDIT_CARD'
+		| 'BANK_TRANSFER'
+		| 'CASH'
+		| 'PACKAGE_CREDIT'
+		| 'MEMBERSHIP'
+		| 'CLASSPASS'
+		| 'FREE';
+	paidAmount: number;
+	refundAmount?: number;
+	packagePurchaseId?: string;
+	creditsUsed?: number;
+	notes?: string;
+	createdAt: Date;
+	updatedAt: Date;
+}
+
+// Legacy Booking type for backward compatibility (deprecated)
 export interface Booking {
 	id: string;
 	studio_id: string;
@@ -47,7 +98,7 @@ export interface Booking {
 	class_start_time: string;
 	class_end_time: string;
 	booking_status: 'confirmed' | 'cancelled' | 'no_show' | 'attended';
-	amount_paid?: number;
+	paidAmount?: number;
 	booking_created_at: string;
 	class_attended_at?: string;
 }
@@ -249,4 +300,23 @@ export interface ImportLogEntry {
 export interface ScoredPayment extends StripePayment {
 	matchScore: number;
 	matchReason: string;
+}
+
+export interface IntegrationSetupProps {
+	studioId: string;
+	onIntegrationComplete?: () => void;
+}
+
+export interface IntegrationStatus {
+	stripe: {
+		connected: boolean;
+		accountId?: string;
+		businessName?: string;
+		lastSync?: string;
+	};
+	zapier: {
+		configured: boolean;
+		webhookUrl?: string;
+		lastWebhook?: string;
+	};
 }

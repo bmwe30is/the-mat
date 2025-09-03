@@ -99,8 +99,8 @@ export class PaymentMatchingService {
 
 			// Amount match (if booking has amount)
 			if (
-				booking.amount_paid &&
-				Math.abs(payment.amount - booking.amount_paid * 100) < 50
+				booking.paidAmount &&
+				Math.abs(payment.amount - booking.paidAmount * 100) < 50
 			) {
 				score += 50;
 				reasons.push('Amount match');
