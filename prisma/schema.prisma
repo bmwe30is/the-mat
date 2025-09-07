@@ -50,6 +50,8 @@ model Studio {
   campaigns    MarketingCampaign[]
   Subscription Subscription[]
   ImportLog    ImportLog[]
+  stripePayments     StripePayment[]
+  matchedTransactions MatchedTransaction[]
 
   @@map("studios")
 }
@@ -275,6 +277,7 @@ model Class {
   locationId   String
   classTypeId  String
   instructorId String?
+  instructorName String? 
 
   // Integration IDs
   arketaClassId String?
@@ -322,7 +325,16 @@ model Booking {
   classId String
 
   // Integration IDs
-  arketaBookingId String?
+  arketaBookingId String? @unique
+
+  // Webhook data (flattened structure for easy processing)
+  customerEmail    String
+  customerName     String
+  className        String
+  instructorName   String?
+  classStartTime   DateTime
+  classEndTime     DateTime
+  classAttendedAt  DateTime?
 
   // Booking details
   status      BookingStatus @default(CONFIRMED)
@@ -330,9 +342,9 @@ model Booking {
   checkedInAt DateTime?
 
   // Payment tracking
-  paymentMethod PaymentMethod
-  paidAmount    Decimal       @db.Decimal(10, 2)
-  refundAmount  Decimal?      @db.Decimal(10, 2)
+  paymentMethod PaymentMethod?
+  paidAmount    Decimal?     @db.Decimal(10, 2)
+  refundAmount  Decimal?     @db.Decimal(10, 2)
 
   // Package usage
   packagePurchaseId String?
@@ -344,11 +356,12 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Relations
-  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  class           Class            @relation(fields: [classId], references: [id], onDelete: Cascade)
+  // Relations (now optional since we have flattened data)
+  user            User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class           Class?            @relation(fields: [classId], references: [id], onDelete: Cascade)
   packagePurchase PackagePurchase? @relation(fields: [packagePurchaseId], references: [id])
   payments        Payment[]
+  matchedTransaction MatchedTransaction?
 
   @@unique([userId, classId])
   @@map("bookings")
@@ -730,4 +743,50 @@ enum ImportStatus {
   ERROR
   WARNING
   SKIPPED
+}
+
+model StripePayment {
+  id               String   @id @default(cuid())
+  studioId         String
+  stripePaymentId  String   @unique
+  amount           Int      // Amount in cents
+  fee              Int      // Fee in cents
+  netAmount        Int      // Net amount in cents
+  currency         String   @default("USD")
+  customerEmail    String?
+  description      String?
+  metadata         Json?
+  status           String   // "succeeded", "pending", "failed"
+  bookingMatchId   String?  // Reference to matched booking
+  createdAt        DateTime @default(now())
+  processedAt      DateTime?
+
+  // Relations
+  studio           Studio            @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  matchedTransaction MatchedTransaction?
+
+  @@map("stripe_payments")
+}
+
+model MatchedTransaction {
+  id               String   @id @default(cuid())
+  studioId         String
+  stripePaymentId  String   @unique
+  bookingId        String?  @unique
+  matchConfidence  String   // "high", "medium", "low", "unmatched"
+  matchReason      String
+  amount           Int      // Amount in cents
+  netProfit        Int      // Net profit in cents
+  customerEmail    String
+  className        String?
+  instructorName   String?
+  transactionDate  DateTime
+  createdAt        DateTime @default(now())
+
+  // Relations
+  studio         Studio        @relation(fields: [studioId], references: [id], onDelete: Cascade)
+  stripePayment  StripePayment @relation(fields: [stripePaymentId], references: [stripePaymentId])
+  booking        Booking?      @relation(fields: [bookingId], references: [id])
+
+  @@map("matched_transactions")
 }

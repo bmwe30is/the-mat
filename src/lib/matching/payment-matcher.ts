@@ -1,16 +1,17 @@
 // lib/matching/payment-matcher.ts
-import { createClient } from '@supabase/supabase-js';
-import type {
-	StripePayment,
-	Booking,
-	MatchedTransaction,
-	ScoredPayment,
-} from '@/types';
+import { prisma } from '@/lib/prisma';
+import type { StripePayment, ScoredPayment } from '@/types';
+import { Decimal } from '@prisma/client/runtime/library';
 
-const supabase = createClient(
-	process.env.NEXT_PUBLIC_SUPABASE_URL!,
-	process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+type PrismaBooking = {
+	id: string;
+	customerEmail: string;
+	className: string;
+	instructorName: string | null;
+	classStartTime: Date;
+	paidAmount: Decimal | null; // Change from number to Decimal
+	// Add other fields as needed
+};
 
 export class PaymentMatchingService {
 	/**
@@ -19,25 +20,27 @@ export class PaymentMatchingService {
 	static async matchBookingWithPayments(studioId: string, bookingId: string) {
 		try {
 			// Get booking details
-			const { data: booking, error: bookingError } = await supabase
-				.from('bookings')
-				.select('*')
-				.eq('id', bookingId)
-				.eq('studio_id', studioId)
-				.single();
+			const booking = (await prisma.booking.findFirst({
+				where: {
+					id: bookingId,
+				},
+			})) as PrismaBooking;
 
-			if (bookingError || !booking) {
+			if (!booking) {
 				throw new Error('Booking not found');
 			}
 
 			// Find potential matching payments
-			const potentialMatches = await this.findPotentialPaymentMatches(booking);
+			const potentialMatches = await this.findPotentialPaymentMatches(
+				booking,
+				studioId
+			);
 
 			// Score and select best match
 			const bestMatch = this.selectBestMatch(booking, potentialMatches);
 
 			if (bestMatch) {
-				await this.createMatchedTransaction(booking, bestMatch);
+				await this.createMatchedTransaction(booking, bestMatch, studioId);
 			}
 		} catch (error) {
 			console.error('Payment matching failed:', error);
@@ -49,9 +52,10 @@ export class PaymentMatchingService {
 	 * Find potential payment matches for a booking
 	 */
 	private static async findPotentialPaymentMatches(
-		booking: Booking
+		booking: PrismaBooking,
+		studioId: string
 	): Promise<StripePayment[]> {
-		const bookingTime = new Date(booking.class_start_time);
+		const bookingTime = new Date(booking.classStartTime);
 		const searchWindowStart = new Date(
 			bookingTime.getTime() - 24 * 60 * 60 * 1000
 		); // 24 hours before
@@ -59,27 +63,25 @@ export class PaymentMatchingService {
 			bookingTime.getTime() + 2 * 60 * 60 * 1000
 		); // 2 hours after
 
-		const { data: payments, error } = await supabase
-			.from('stripe_payments')
-			.select('*')
-			.eq('studio_id', booking.studio_id)
-			.gte('created_at', searchWindowStart.toISOString())
-			.lte('created_at', searchWindowEnd.toISOString())
-			.is('booking_match_id', null); // Only unmatched payments
+		const payments = await prisma.stripePayment.findMany({
+			where: {
+				studioId: studioId,
+				createdAt: {
+					gte: searchWindowStart,
+					lte: searchWindowEnd,
+				},
+				bookingMatchId: null, // Only unmatched payments
+			},
+		});
 
-		if (error) {
-			console.error('Error finding potential matches:', error);
-			return [];
-		}
-
-		return payments || [];
+		return payments as StripePayment[];
 	}
 
 	/**
 	 * Score and select the best payment match for a booking
 	 */
 	private static selectBestMatch(
-		booking: Booking,
+		booking: PrismaBooking,
 		payments: StripePayment[]
 	): ScoredPayment | null {
 		if (payments.length === 0) return null;
@@ -90,8 +92,8 @@ export class PaymentMatchingService {
 
 			// Email match (highest priority)
 			if (
-				payment.customer_email?.toLowerCase() ===
-				booking.customer_email.toLowerCase()
+				payment.customerEmail?.toLowerCase() ===
+				booking.customerEmail.toLowerCase()
 			) {
 				score += 100;
 				reasons.push('Email match');
@@ -100,7 +102,7 @@ export class PaymentMatchingService {
 			// Amount match (if booking has amount)
 			if (
 				booking.paidAmount &&
-				Math.abs(payment.amount - booking.paidAmount * 100) < 50
+				Math.abs(payment.amount - booking.paidAmount.toNumber() * 100) < 50
 			) {
 				score += 50;
 				reasons.push('Amount match');
@@ -109,16 +111,16 @@ export class PaymentMatchingService {
 			// Description contains class name
 			if (
 				payment.description
-					.toLowerCase()
-					.includes(booking.class_name.toLowerCase())
+					?.toLowerCase()
+					.includes(booking.className.toLowerCase())
 			) {
 				score += 30;
 				reasons.push('Class name in description');
 			}
 
 			// Time proximity (closer = higher score)
-			const bookingTime = new Date(booking.class_start_time).getTime();
-			const paymentTime = new Date(payment.created_at).getTime();
+			const bookingTime = new Date(booking.classStartTime).getTime();
+			const paymentTime = new Date(payment.createdAt).getTime();
 			const timeDiffHours =
 				Math.abs(bookingTime - paymentTime) / (1000 * 60 * 60);
 
@@ -148,40 +150,34 @@ export class PaymentMatchingService {
 	 * Create matched transaction record
 	 */
 	private static async createMatchedTransaction(
-		booking: Booking,
-		payment: StripePayment & { matchScore: number; matchReason: string }
+		booking: PrismaBooking,
+		payment: StripePayment & { matchScore: number; matchReason: string },
+		studioId: string
 	) {
 		const confidence = this.getMatchConfidence(payment.matchScore);
 
-		const matchedTransaction: Omit<MatchedTransaction, 'id' | 'created_at'> = {
-			studio_id: booking.studio_id,
-			stripe_payment_id: payment.stripe_payment_id,
-			booking_id: booking.id,
-			match_confidence: confidence,
-			match_reason: payment.matchReason,
-			amount: payment.amount,
-			net_profit: payment.net_amount,
-			customer_email: booking.customer_email,
-			class_name: booking.class_name,
-			instructor_name: booking.instructor_name,
-			transaction_date: booking.class_start_time,
-		};
-
-		// Insert matched transaction
-		const { error: matchError } = await supabase
-			.from('matched_transactions')
-			.insert(matchedTransaction);
-
-		if (matchError) {
-			console.error('Error creating matched transaction:', matchError);
-			throw matchError;
-		}
+		// Create matched transaction
+		await prisma.matchedTransaction.create({
+			data: {
+				studioId: studioId,
+				stripePaymentId: payment.stripePaymentId,
+				bookingId: booking.id,
+				matchConfidence: confidence,
+				matchReason: payment.matchReason,
+				amount: payment.amount,
+				netProfit: payment.netAmount,
+				customerEmail: booking.customerEmail,
+				className: booking.className,
+				instructorName: booking.instructorName,
+				transactionDate: booking.classStartTime,
+			},
+		});
 
 		// Mark payment as matched
-		await supabase
-			.from('stripe_payments')
-			.update({ booking_match_id: booking.id })
-			.eq('id', payment.id);
+		await prisma.stripePayment.update({
+			where: { id: payment.id },
+			data: { bookingMatchId: booking.id },
+		});
 	}
 
 	/**
