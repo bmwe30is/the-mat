@@ -1,15 +1,6 @@
 // lib/zapier/webhook-handler.ts
-import { createClient } from '@supabase/supabase-js';
-import type {
-	ZapierBookingWebhook,
-	WebhookBooking,
-	PrismaBookingStatus,
-} from '@/types';
-
-const supabase = createClient(
-	process.env.NEXT_PUBLIC_SUPABASE_URL!,
-	process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { prisma } from '@/lib/prisma';
+import type { ArketaZapierBookingWebhook, PrismaBookingStatus } from '@/types';
 
 export class ZapierWebhookService {
 	/**
@@ -17,53 +8,190 @@ export class ZapierWebhookService {
 	 */
 	static async processBookingWebhook(
 		studioId: string,
-		webhookData: ZapierBookingWebhook
+		webhookData: ArketaZapierBookingWebhook
 	): Promise<{ success: boolean; bookingId?: string; error?: string }> {
 		try {
 			// Validate required fields
-			if (!webhookData.booking_id || !webhookData.customer_email) {
+			if (!webhookData.bookingId || !webhookData.customerEmail) {
 				throw new Error('Missing required booking data');
 			}
 
-			// Transform webhook data to internal booking format
-			const booking: Omit<WebhookBooking, 'id'> = {
-				studio_id: studioId,
-				external_booking_id: webhookData.booking_id,
-				customer_email: webhookData.customer_email.toLowerCase().trim(),
-				customer_name: `${webhookData.customer_first_name || ''} ${
-					webhookData.customer_last_name || ''
-				}`.trim(),
-				class_name: webhookData.class_name,
-				instructor_name: webhookData.instructor_name || undefined,
-				class_start_time: webhookData.class_start_time,
-				class_end_time: webhookData.class_end_time,
-				booking_status: this.normalizeBookingStatus(webhookData.booking_status),
-				paidAmount: webhookData.amount_paid || undefined,
-				booking_created_at: webhookData.booking_created_at,
-				class_attended_at: undefined, // Will be updated later
-			};
+			// Find or create the user
+			const user = await prisma.user.upsert({
+				where: { email: webhookData.customerEmail.toLowerCase().trim() },
+				update: {
+					firstName: webhookData.customerFirstName || '',
+					lastName: webhookData.customerLastName || '',
+					phone: webhookData.customerPhone || undefined,
+					arketaCustomerId: webhookData.customerArketaId || undefined,
+				},
+				create: {
+					email: webhookData.customerEmail.toLowerCase().trim(),
+					firstName: webhookData.customerFirstName || '',
+					lastName: webhookData.customerLastName || '',
+					phone: webhookData.customerPhone || undefined,
+					arketaCustomerId: webhookData.customerArketaId || undefined,
+				},
+			});
 
-			// Upsert booking to database
-			const { data, error } = await supabase
-				.from('bookings')
-				.upsert(booking, {
-					onConflict: 'external_booking_id,studio_id',
-					ignoreDuplicates: false,
-				})
-				.select('id')
-				.single();
+			// For now, we'll create a placeholder class record
+			// In a real implementation, you'd want to properly manage classes
+			let studio = await prisma.studio.findFirst({
+				where: {
+					OR: [{ id: studioId }, { slug: `studio-${studioId}` }],
+				},
+				include: { locations: true },
+			});
 
-			if (error) {
-				console.error('Database error storing booking:', error);
-				throw error;
+			let brand;
+
+			if (!studio || !studio.locations.length) {
+				// Create studio first
+				await prisma.studio.upsert({
+					where: { id: studioId },
+					update: {},
+					create: {
+						id: studioId,
+						name: `studio-${studioId}`,
+						slug: `studio-${studioId}`,
+						email: 'default-studio@example.com',
+					},
+				});
+
+				// Create default brand AFTER studio exists
+				brand = await prisma.brand.create({
+					data: {
+						studioId: studioId,
+						name: 'Default Brand',
+						slug: 'default-brand',
+					},
+				});
+
+				// Create default location
+				await prisma.location.create({
+					data: {
+						studioId: studioId,
+						brandId: brand.id,
+						name: 'Default Location',
+						slug: 'default-location',
+						address: '123 Main St',
+						city: 'Default City',
+						state: 'CA',
+						zipCode: '90210',
+					},
+				});
+
+				// Re-fetch studio with locations
+				studio = await prisma.studio.findUnique({
+					where: { id: studioId },
+					include: { locations: true },
+				});
+			} else {
+				// Only check for brand if studio already exists
+				brand = await prisma.brand.findFirst({
+					where: { studioId: studioId },
+				});
+
+				if (!brand) {
+					brand = await prisma.brand.create({
+						data: {
+							studioId: studioId,
+							name: 'Default Brand',
+							slug: 'default-brand',
+						},
+					});
+				}
 			}
 
+			let classType = await prisma.classType.findFirst({
+				where: {
+					brandId: brand.id,
+					name: webhookData.className,
+				},
+			});
+
+			if (!classType) {
+				classType = await prisma.classType.create({
+					data: {
+						brandId: brand.id,
+						name: webhookData.className,
+						slug: webhookData.className.toLowerCase().replace(/\s+/g, '-'),
+						duration: 60, // Default duration
+					},
+				});
+			}
+
+			// Create or find the class
+			let classRecord = await prisma.class.findFirst({
+				where: {
+					arketaClassId: webhookData.classId,
+				},
+			});
+
+			if (!classRecord) {
+				// Convert paymentAmount string to number (Prisma handles Decimal conversion)
+				const paymentAmount = parseFloat(webhookData.paymentAmount) || 0;
+
+				classRecord = await prisma.class.create({
+					data: {
+						locationId: studio!.locations[0].id,
+						classTypeId: classType.id,
+						instructorId: webhookData.classInstructorId,
+						instructorName: webhookData.classInstructorName,
+						arketaClassId: webhookData.classId,
+						startTime: this.normalizeArketaTimeStamp(
+							webhookData.classStartTime
+						),
+						endTime: this.normalizeArketaTimeStamp(webhookData.classEndTime),
+						capacity: 20, // Default capacity
+						status: 'SCHEDULED', // Required field
+						memberPrice: paymentAmount,
+						dropInPrice: paymentAmount,
+					},
+				});
+			}
+
+			// Create the booking
+			const booking = await prisma.booking.upsert({
+				where: {
+					arketaBookingId: webhookData.bookingId,
+				},
+				update: {
+					status: this.normalizeBookingStatus(webhookData.bookingStatus),
+					paidAmount: webhookData.paymentAmount
+						? parseFloat(webhookData.paymentAmount)
+						: null,
+					classAttendedAt:
+						webhookData.bookingStatus === 'attended' ? new Date() : undefined,
+				},
+				create: {
+					userId: user.id,
+					classId: classRecord.id,
+					arketaBookingId: webhookData.bookingId,
+					customerEmail: webhookData.customerEmail.toLowerCase().trim(),
+					customerName: `${webhookData.customerFirstName || ''} ${
+						webhookData.customerLastName || ''
+					}`.trim(),
+					className: webhookData.className,
+					instructorName: webhookData.classInstructorName || undefined,
+					classStartTime: this.normalizeArketaTimeStamp(
+						webhookData.classStartTime
+					),
+					classEndTime: this.normalizeArketaTimeStamp(webhookData.classEndTime),
+					status: this.normalizeBookingStatus(webhookData.bookingStatus),
+					paidAmount: webhookData.paymentAmount
+						? parseFloat(webhookData.paymentAmount)
+						: null,
+					bookedAt: this.normalizeArketaTimeStamp(webhookData.bookingCreatedAt),
+				},
+			});
+
 			// Trigger payment matching for this booking
-			await this.triggerPaymentMatching(studioId, data.id);
+			await this.triggerPaymentMatching(studioId, booking.id);
 
 			return {
 				success: true,
-				bookingId: data.id,
+				bookingId: booking.id,
 			};
 		} catch (error) {
 			console.error('Booking webhook processing failed:', error);
@@ -78,7 +206,7 @@ export class ZapierWebhookService {
 	 * Normalize booking status from various formats
 	 */
 	private static normalizeBookingStatus(status: string): PrismaBookingStatus {
-		const normalizedStatus = status.toLowerCase().trim();
+		const normalizedStatus = status?.toLowerCase().trim() || '';
 
 		switch (normalizedStatus) {
 			case 'confirmed':
@@ -100,6 +228,13 @@ export class ZapierWebhookService {
 			default:
 				return 'CONFIRMED'; // Default fallback
 		}
+	}
+
+	/**
+	 * Normalize Arketa timestamp to Date object
+	 */
+	private static normalizeArketaTimeStamp(timestamp: string): Date {
+		return new Date(parseInt(timestamp));
 	}
 
 	/**

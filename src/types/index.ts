@@ -13,26 +13,24 @@ export interface Studio {
 
 export interface StudioSettings {
 	timezone: string;
-	currency: string;
-	default_instructor_rate: number;
-	overhead_percentage: number;
 }
 
 // Stripe Payment Data
 export interface StripePayment {
 	id: string;
-	studio_id: string;
-	stripe_payment_id: string;
-	amount: number;
-	fee: number;
-	net_amount: number;
+	studioId: string;
+	stripePaymentId: string;
+	amount: number; // Amount in cents
+	fee: number; // Fee in cents
+	netAmount: number; // Net amount in cents
 	currency: string;
-	customer_email?: string;
-	description: string;
-	metadata: Record<string, string>;
+	customerEmail?: string;
+	description?: string;
+	metadata?: Record<string, any>;
 	status: 'succeeded' | 'pending' | 'failed';
-	created_at: string;
-	processed_at?: string;
+	bookingMatchId?: string;
+	createdAt: Date;
+	processedAt?: Date;
 }
 
 // Prisma BookingStatus enum values
@@ -43,33 +41,58 @@ export type PrismaBookingStatus =
 	| 'ATTENDED'
 	| 'WAITLISTED';
 
-// Webhook booking data from Zapier/Arketa (flattened structure)
-export interface WebhookBooking {
-	id: string;
-	studio_id: string;
-	external_booking_id: string; // Arketa booking ID
-	customer_email: string;
-	customer_name: string;
-	class_name: string;
-	instructor_name?: string;
-	class_start_time: string;
-	class_end_time: string;
-	booking_status: PrismaBookingStatus;
-	paidAmount?: number;
-	booking_created_at: string;
-	class_attended_at?: string;
+// Webhook payload types
+export interface ArketaZapierBookingWebhook {
+	customerEmail: string;
+	customerFirstName: string;
+	customerLastName: string;
+	customerPhone: string;
+	customerArketaId: string;
+	bookingId: string; // Arketa unique ID
+	bookingCreatedAt: string; // Arketa date created
+	bookingStatus: string;
+
+	className: string;
+	classInstructorName: string;
+	classInstructorId: string;
+	classPrice: string;
+	classStartTime: string; // ISO string
+	classEndTime: string; // ISO string
+	classDuration: string;
+	classLocationCityState: string;
+	classLocationAddress: string;
+	classLocationState: string;
+	classLocationPostalCode: string;
+	classLocationCountry: string;
+	classLocationName: string;
+	classLocationId: string;
+	classCapacity: string;
+	classId: string;
+
+	classBlockedSeats: string;
+	classLastBookedAt: string; // Arketa class last blocket slot
+
+	paidBooking: string;
+	paymentAmount: string;
 }
 
 // Prisma-compatible booking structure (matches database schema)
 export interface PrismaBooking {
 	id: string;
-	userId: string;
-	classId: string;
+	userId?: string;
+	classId?: string;
 	arketaBookingId?: string;
+	customerEmail: string;
+	customerName: string;
+	className: string;
+	instructorName?: string;
+	classStartTime: Date;
+	classEndTime: Date;
+	classAttendedAt?: Date;
 	status: PrismaBookingStatus;
 	bookedAt: Date;
 	checkedInAt?: Date;
-	paymentMethod:
+	paymentMethod?:
 		| 'CREDIT_CARD'
 		| 'BANK_TRANSFER'
 		| 'CASH'
@@ -77,7 +100,7 @@ export interface PrismaBooking {
 		| 'MEMBERSHIP'
 		| 'CLASSPASS'
 		| 'FREE';
-	paidAmount: number;
+	paidAmount?: number;
 	refundAmount?: number;
 	packagePurchaseId?: string;
 	creditsUsed?: number;
@@ -106,18 +129,18 @@ export interface Booking {
 // Matched transaction combining Stripe + Booking data
 export interface MatchedTransaction {
 	id: string;
-	studio_id: string;
-	stripe_payment_id: string;
-	booking_id?: string;
-	match_confidence: 'high' | 'medium' | 'low' | 'unmatched';
-	match_reason: string;
-	amount: number;
-	net_profit: number;
-	customer_email: string;
-	class_name?: string;
-	instructor_name?: string;
-	transaction_date: string;
-	created_at: string;
+	studioId: string;
+	stripePaymentId: string;
+	bookingId?: string;
+	matchConfidence: 'high' | 'medium' | 'low' | 'unmatched';
+	matchReason: string;
+	amount: number; // Amount in cents
+	netProfit: number; // Net profit in cents
+	customerEmail: string;
+	className?: string;
+	instructorName?: string;
+	transactionDate: Date;
+	createdAt: Date;
 }
 
 // Analytics & Metrics
@@ -168,22 +191,6 @@ export interface PaginatedResponse<T> {
 		total: number;
 		totalPages: number;
 	};
-}
-
-// Webhook payload types
-export interface ZapierBookingWebhook {
-	booking_id: string;
-	customer_email: string;
-	customer_first_name: string;
-	customer_last_name: string;
-	class_name: string;
-	instructor_name?: string;
-	class_start_time: string; // ISO string
-	class_end_time: string; // ISO string
-	booking_status: string;
-	amount_paid?: number;
-	booking_created_at: string;
-	class_location?: string;
 }
 
 export interface StripeWebhookEvent {
