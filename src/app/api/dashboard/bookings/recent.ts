@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
 
 		const formattedBookings = recentBookings.map((booking) => ({
 			id: booking.id,
-			customer: `${booking.user.firstName} ${booking.user.lastName}`,
-			class: booking.class.classType.name,
+			customer: `${booking.user?.firstName} ${booking.user?.lastName}`,
+			class: booking.class?.classType?.name,
 			time: formatRelativeTime(booking.bookedAt),
 			amount: booking.payments.reduce(
 				(sum, payment) =>

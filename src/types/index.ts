@@ -26,7 +26,7 @@ export interface StripePayment {
 	currency: string;
 	customerEmail?: string;
 	description?: string;
-	metadata?: Record<string, any>;
+	metadata?: Record<string, unknown>;
 	status: 'succeeded' | 'pending' | 'failed';
 	bookingMatchId?: string;
 	createdAt: Date;
