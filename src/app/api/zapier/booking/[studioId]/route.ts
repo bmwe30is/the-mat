@@ -1,7 +1,7 @@
 // app/api/zapier/booking/[studioId]/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { ZapierWebhookService } from '@/lib/zapier/webhook-handler';
-import type { ZapierBookingWebhook } from '@/types';
+import type { ArketaZapierBookingWebhook } from '@/types';
 
 export async function POST(
 	request: NextRequest,
@@ -26,7 +26,7 @@ export async function POST(
 		}
 
 		// Parse webhook data
-		const webhookData: ZapierBookingWebhook = JSON.parse(body);
+		const webhookData: ArketaZapierBookingWebhook = JSON.parse(body);
 
 		// Process the booking webhook
 		const result = await ZapierWebhookService.processBookingWebhook(

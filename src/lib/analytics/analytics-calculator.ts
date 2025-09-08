@@ -117,7 +117,7 @@ export class MetricsCalculator {
 			0
 		);
 		const totalProfit = transactions.reduce(
-			(sum, t) => sum + t.net_profit / 100,
+			(sum, t) => sum + t.netProfit / 100,
 			0
 		);
 		const totalBookings = bookings.length;
@@ -169,7 +169,7 @@ export class MetricsCalculator {
 			0
 		);
 		const totalProfit = transactions.reduce(
-			(sum, t) => sum + t.net_profit / 100,
+			(sum, t) => sum + t.netProfit / 100,
 			0
 		);
 		const totalAttendees = bookings.filter(
