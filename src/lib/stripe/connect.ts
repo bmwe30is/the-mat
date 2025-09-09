@@ -1,6 +1,8 @@
-// lib/stripe/connect.ts
+// STEP 1: Update Stripe Connect Service
+// lib/stripe/connect.ts - Enhanced with webhook setup
 import { stripe } from './client';
 import { createClient } from '@supabase/supabase-js';
+import { StripeWebhookService } from './webhook-service';
 
 const supabase = createClient(
 	process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,108 +11,104 @@ const supabase = createClient(
 
 export class StripeConnectService {
 	/**
-	 * Generate Stripe Connect OAuth URL for studio onboarding
-	 */
-	static generateConnectUrl(studioId: string): string {
-		const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
-		const redirectUri = `${baseUrl}/api/stripe/callback`;
-
-		const params = new URLSearchParams({
-			response_type: 'code',
-			client_id: process.env.STRIPE_CONNECT_CLIENT_ID!,
-			scope: 'read_only',
-			redirect_uri: redirectUri,
-			state: studioId, // Pass studio ID for callback handling
-		});
-
-		return `https://connect.stripe.com/oauth/authorize?${params.toString()}`;
-	}
-
-	/**
-	 * Exchange authorization code for access token
+	 * Enhanced token exchange with automatic webhook setup
 	 */
 	static async exchangeCodeForToken(code: string, studioId: string) {
 		try {
+			console.log('🔄 Exchanging Stripe Connect code for token...');
+
+			// 1. Exchange authorization code for access token
 			const response = await stripe.oauth.token({
 				grant_type: 'authorization_code',
 				code,
 			});
 
-			// Store the connected account information
+			const accountId = response.stripe_user_id;
+			console.log('✅ Token exchange successful for account:', accountId);
+
+			// 2. Store connection information
 			await supabase
 				.from('studios')
 				.update({
-					stripe_account_id: response.stripe_user_id,
+					stripe_account_id: accountId,
 					stripe_access_token: response.access_token, // Encrypt in production
 					stripe_connected_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),
 				})
 				.eq('id', studioId);
 
+			// 3. 🆕 Setup webhook automatically
+			console.log('🔗 Setting up Stripe webhook...');
+			const webhookResult = await StripeWebhookService.setupStudioWebhook(
+				studioId,
+				accountId
+			);
+
+			// 4. 🆕 Perform initial data sync
+			console.log('📥 Performing initial payment sync...');
+			const syncResult = await this.performInitialSync(studioId, accountId);
+
 			return {
 				success: true,
-				accountId: response.stripe_user_id,
+				accountId,
+				webhookConfigured: webhookResult.success,
+				webhookId: webhookResult.webhookId,
+				initialPayments: syncResult.paymentCount,
+				message: `Connected successfully! Synced ${syncResult.paymentCount} recent payments.`,
 			};
 		} catch (error) {
-			console.error('Stripe Connect token exchange failed:', error);
-			throw new Error('Failed to connect Stripe account');
+			console.error('❌ Stripe Connect setup failed:', error);
+			throw new Error(`Failed to connect Stripe account: ${error.message}`);
 		}
 	}
 
 	/**
-	 * Sync payment data for a connected studio
+	 * Initial sync of recent payment data (last 30 days)
 	 */
-	static async syncPaymentData(studioId: string) {
+	private static async performInitialSync(studioId: string, accountId: string) {
 		try {
-			// Get studio's access token (decrypt in production)
-			const { data: studio } = await supabase
-				.from('studios')
-				.select('stripe_access_token, created_at')
-				.eq('id', studioId)
-				.single();
+			// Create Stripe client for connected account
+			const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+				apiVersion: '2023-10-16',
+				stripeAccount: accountId,
+			});
 
-			if (!studio?.stripe_access_token) {
-				throw new Error('No Stripe access token found');
-			}
+			// Sync last 30 days of payments
+			const thirtyDaysAgo = Math.floor(
+				(Date.now() - 30 * 24 * 60 * 60 * 1000) / 1000
+			);
 
-			// Fetch payments from the last 30 days (adjust as needed)
-			const thirtyDaysAgo = Math.floor(Date.now() / 1000) - 30 * 24 * 60 * 60;
-
-			const charges = await stripe.charges.list({
-				limit: 100,
+			const charges = await connectedStripe.charges.list({
 				created: { gte: thirtyDaysAgo },
+				limit: 100,
 				expand: ['data.balance_transaction'],
 			});
 
-			// Process and store payment data
+			if (charges.data.length === 0) {
+				console.log('📭 No recent payments found');
+				return { paymentCount: 0 };
+			}
+
+			// Transform and store payments
 			const payments = charges.data.map((charge) => ({
 				studio_id: studioId,
 				stripe_payment_id: charge.id,
 				amount: charge.amount,
-				fee:
-					typeof charge.balance_transaction === 'string'
-						? charge.balance_transaction.toString()
-						: charge.balance_transaction?.fee || 0,
-				net_amount:
-					typeof charge.balance_transaction === 'string'
-						? charge.balance_transaction.toString()
-						: charge.balance_transaction?.fee || 0,
+				fee: charge.balance_transaction?.fee || 0,
+				net_amount: charge.balance_transaction?.net || charge.amount,
 				currency: charge.currency,
 				customer_email: charge.billing_details?.email || charge.receipt_email,
 				description: charge.description || '',
-				metadata: charge.metadata,
+				metadata: charge.metadata || {},
 				status: charge.status,
 				created_at: new Date(charge.created * 1000).toISOString(),
 				processed_at: charge.balance_transaction
-					? new Date(
-							typeof charge.balance_transaction === 'string'
-								? charge.balance_transaction.toString()
-								: charge.balance_transaction?.created * 1000
-						).toISOString()
+					? new Date(charge.balance_transaction.created * 1000).toISOString()
 					: null,
+				sync_type: 'initial_sync',
 			}));
 
-			// Upsert payments to database
+			// Bulk insert payments
 			const { error } = await supabase
 				.from('stripe_payments')
 				.upsert(payments, {
@@ -119,38 +117,125 @@ export class StripeConnectService {
 				});
 
 			if (error) {
-				console.error('Error storing payment data:', error);
+				console.error('Failed to store initial payments:', error);
 				throw error;
 			}
 
-			return {
-				success: true,
-				paymentsProcessed: payments.length,
-			};
+			console.log(
+				`✅ Initial sync complete: ${payments.length} payments stored`
+			);
+			return { paymentCount: payments.length };
 		} catch (error) {
-			console.error('Payment sync failed:', error);
-			throw error;
+			console.error('Initial sync failed:', error);
+			// Don't throw - connection can succeed even if sync fails
+			return { paymentCount: 0 };
 		}
 	}
 
 	/**
-	 * Get account information for connected studio
+	 * Manual sync for studios (fallback option)
 	 */
-	static async getAccountInfo(accountId: string) {
+	static async performManualSync(studioId: string, daysBack: number = 7) {
 		try {
-			const account = await stripe.accounts.retrieve(accountId);
+			console.log(
+				`🔄 Starting manual sync for studio ${studioId}, ${daysBack} days back`
+			);
 
+			// Get studio's Stripe account info
+			const { data: studio, error } = await supabase
+				.from('studios')
+				.select('stripe_account_id, stripe_last_manual_sync')
+				.eq('id', studioId)
+				.single();
+
+			if (error || !studio?.stripe_account_id) {
+				throw new Error('Studio not found or Stripe not connected');
+			}
+
+			// Create connected Stripe client
+			const connectedStripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+				apiVersion: '2023-10-16',
+				stripeAccount: studio.stripe_account_id,
+			});
+
+			// Determine sync window
+			let startDate: number;
+			if (studio.stripe_last_manual_sync) {
+				// Sync from last manual sync
+				startDate = Math.floor(
+					new Date(studio.stripe_last_manual_sync).getTime() / 1000
+				);
+			} else {
+				// Sync from X days back
+				startDate = Math.floor(
+					(Date.now() - daysBack * 24 * 60 * 60 * 1000) / 1000
+				);
+			}
+
+			let totalSynced = 0;
+			let hasMore = true;
+			let startingAfter: string | undefined;
+
+			// Paginate through all charges
+			while (hasMore) {
+				const charges = await connectedStripe.charges.list({
+					created: { gte: startDate },
+					limit: 100,
+					starting_after: startingAfter,
+					expand: ['data.balance_transaction'],
+				});
+
+				if (charges.data.length === 0) break;
+
+				// Process batch
+				const payments = charges.data.map((charge) => ({
+					studio_id: studioId,
+					stripe_payment_id: charge.id,
+					amount: charge.amount,
+					fee: charge.balance_transaction?.fee || 0,
+					net_amount: charge.balance_transaction?.net || charge.amount,
+					currency: charge.currency,
+					customer_email: charge.billing_details?.email || charge.receipt_email,
+					description: charge.description || '',
+					metadata: charge.metadata || {},
+					status: charge.status,
+					created_at: new Date(charge.created * 1000).toISOString(),
+					processed_at: charge.balance_transaction
+						? new Date(charge.balance_transaction.created * 1000).toISOString()
+						: null,
+					sync_type: 'manual_sync',
+				}));
+
+				// Bulk upsert
+				await supabase.from('stripe_payments').upsert(payments, {
+					onConflict: 'stripe_payment_id,studio_id',
+					ignoreDuplicates: false,
+				});
+
+				totalSynced += payments.length;
+				hasMore = charges.has_more;
+				startingAfter = charges.data[charges.data.length - 1].id;
+
+				console.log(`📥 Manual sync progress: ${totalSynced} payments...`);
+			}
+
+			// Update last manual sync timestamp
+			await supabase
+				.from('studios')
+				.update({
+					stripe_last_manual_sync: new Date().toISOString(),
+					stripe_total_payments: totalSynced,
+				})
+				.eq('id', studioId);
+
+			console.log(`✅ Manual sync complete: ${totalSynced} payments synced`);
 			return {
-				id: account.id,
-				business_name: account.business_profile?.name || account.company?.name,
-				email: account.email,
-				country: account.country,
-				currency: account.default_currency,
-				charges_enabled: account.charges_enabled,
-				payouts_enabled: account.payouts_enabled,
+				success: true,
+				paymentsSynced: totalSynced,
+				syncedFrom: new Date(startDate * 1000).toISOString(),
 			};
 		} catch (error) {
-			console.error('Failed to get account info:', error);
+			console.error('❌ Manual sync failed:', error);
 			throw error;
 		}
 	}

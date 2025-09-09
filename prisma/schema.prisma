@@ -37,6 +37,10 @@ model Studio {
   // Multi-tenant security
   apiKey String @unique @default(cuid())
 
+  stripeWebhookId String?
+  stripeWebhookSecret String? 
+  stripeWebhookUrl String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -749,17 +753,16 @@ model StripePayment {
   id               String   @id @default(cuid())
   studioId         String
   stripePaymentId  String   @unique
-  amount           Int      // Amount in cents
-  fee              Int      // Fee in cents
-  netAmount        Int      // Net amount in cents
+  amount           Int      // Amount in cents    
   currency         String   @default("USD")
   customerEmail    String?
   description      String?
   metadata         Json?
   status           String   // "succeeded", "pending", "failed"
+  paid             Boolean  // Whether the payment was successful
   bookingMatchId   String?  // Reference to matched booking
-  createdAt        DateTime @default(now())
-  processedAt      DateTime?
+  createdAt        DateTime @default(now())  
+  updatedAt        DateTime @updatedAt
 
   // Relations
   studio           Studio            @relation(fields: [studioId], references: [id], onDelete: Cascade)

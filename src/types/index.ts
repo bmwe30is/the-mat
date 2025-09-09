@@ -1,4 +1,31 @@
 // types/index.ts
+import Stripe from 'stripe';
+
+// Use Stripe's official types
+export type StripeWebhookEvent = Stripe.Event;
+export type StripeCharge = Stripe.Charge;
+export type StripePaymentIntent = Stripe.PaymentIntent;
+export type StripeDispute = Stripe.Dispute;
+
+// Type guards using official types
+export function isChargeSucceededEvent(
+	event: Stripe.Event
+): event is Stripe.Event & { type: 'charge.succeeded' } {
+	return event.type === 'charge.succeeded';
+}
+
+export function isChargeRefundedEvent(
+	event: Stripe.Event
+): event is Stripe.Event & { type: 'charge.refunded' } {
+	return event.type === 'charge.refunded';
+}
+
+export function isDisputeCreatedEvent(
+	event: Stripe.Event
+): event is Stripe.Event & { type: 'charge.dispute.created' } {
+	return event.type === 'charge.dispute.created';
+}
+
 export interface Studio {
 	id: string;
 	name: string;
@@ -29,6 +56,20 @@ export interface StripePayment {
 	metadata?: Record<string, unknown>;
 	status: 'succeeded' | 'pending' | 'failed';
 	bookingMatchId?: string;
+	createdAt: Date;
+	processedAt?: Date;
+}
+
+// Types for Stripe webhook events
+export interface StripeWebhookLog {
+	id: string;
+	studioId: string;
+	eventType: string;
+	eventId: string;
+	status: 'pending' | 'processing' | 'success' | 'failed';
+	errorMessage?: string;
+	webhookData: StripeWebhookEvent;
+	retryCount: number;
 	createdAt: Date;
 	processedAt?: Date;
 }
@@ -76,11 +117,10 @@ export interface ArketaZapierBookingWebhook {
 	paymentAmount: string;
 }
 
-// Prisma-compatible booking structure (matches database schema)
-export interface PrismaBooking {
+export interface Booking {
 	id: string;
-	userId?: string;
-	classId?: string;
+	userId: string;
+	classId: string;
 	arketaBookingId?: string;
 	customerEmail: string;
 	customerName: string;
@@ -89,7 +129,7 @@ export interface PrismaBooking {
 	classStartTime: Date;
 	classEndTime: Date;
 	classAttendedAt?: Date;
-	status: PrismaBookingStatus;
+	status: 'CONFIRMED' | 'CANCELLED' | 'NO_SHOW' | 'ATTENDED' | 'WAITLISTED';
 	bookedAt: Date;
 	checkedInAt?: Date;
 	paymentMethod?:
@@ -107,23 +147,6 @@ export interface PrismaBooking {
 	notes?: string;
 	createdAt: Date;
 	updatedAt: Date;
-}
-
-// Legacy Booking type for backward compatibility (deprecated)
-export interface Booking {
-	id: string;
-	studio_id: string;
-	external_booking_id: string; // Arketa booking ID
-	customer_email: string;
-	customer_name: string;
-	class_name: string;
-	instructor_name?: string;
-	class_start_time: string;
-	class_end_time: string;
-	booking_status: 'confirmed' | 'cancelled' | 'no_show' | 'attended';
-	paidAmount?: number;
-	booking_created_at: string;
-	class_attended_at?: string;
 }
 
 // Matched transaction combining Stripe + Booking data
@@ -191,15 +214,6 @@ export interface PaginatedResponse<T> {
 		total: number;
 		totalPages: number;
 	};
-}
-
-export interface StripeWebhookEvent {
-	id: string;
-	type: string;
-	data: {
-		object: Record<string, unknown>;
-	};
-	created: number;
 }
 
 // Database utility types

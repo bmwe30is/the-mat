@@ -22,7 +22,7 @@
 		"next": "15.5.0",
 		"react": "19.1.0",
 		"react-dom": "19.1.0",
-		"stripe": "^18.4.0"
+		"stripe": "^18.5.0"
 	},
 	"devDependencies": {
 		"@eslint/eslintrc": "^3",
@@ -30,6 +30,7 @@
 		"@types/node": "^20",
 		"@types/react": "^19",
 		"@types/react-dom": "^19",
+		"@types/stripe": "^8.0.417",
 		"eslint": "^9",
 		"eslint-config-next": "15.5.0",
 		"pino": "^9.9.0",
