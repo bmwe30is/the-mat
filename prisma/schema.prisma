@@ -33,13 +33,15 @@ model Studio {
   arketaApiKey    String?
   arketaStudioId  String?
   stripeAccountId String?
-
-  // Multi-tenant security
-  apiKey String @unique @default(cuid())
-
+  stripeRefreshToken String? // Add encrypted refresh token
   stripeWebhookId String?
   stripeWebhookSecret String? 
   stripeWebhookUrl String?
+  stripeConnectedAt DateTime?
+  stripeLastManualSync DateTime? 
+
+  // Multi-tenant security
+  apiKey String @unique @default(cuid())
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
