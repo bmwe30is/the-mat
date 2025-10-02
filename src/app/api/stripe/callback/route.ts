@@ -28,15 +28,19 @@ export async function GET(request: NextRequest) {
 		// Exchange code for token and store account info
 		const result = await StripeConnectService.exchangeCodeForToken(code, state);
 
-		if (result.success && result.accountId) {
+		if (result.success) {
 			// Trigger initial payment sync
-			await StripeConnectService.syncPaymentData(state);
+			await StripeConnectService.syncPaymentData(state, result.accountId);
 
 			// Redirect to success page
 			return NextResponse.redirect(
 				new URL(`/dashboard/${state}/integrations?connected=true`, request.url)
 			);
 		}
+
+		return NextResponse.redirect(
+			new URL('/dashboard?error=connection_failed', request.url)
+		);
 
 		throw new Error('Token exchange failed');
 	} catch (error) {

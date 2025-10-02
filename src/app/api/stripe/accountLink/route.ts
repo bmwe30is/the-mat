@@ -4,18 +4,18 @@ import { StripeConnectService } from '@/lib/stripe/connect';
 
 export async function POST(request: NextRequest) {
 	try {
+		const origin = request.headers.get('origin') || '';
 		const body = await request.json();
-		const { studioId } = body;
+		const { account } = body;
+		const accountLink = await StripeConnectService.createStripeAccountLink(
+			account,
+			origin
+		);
 
-		const connectUrl = await StripeConnectService.generateConnectUrl(studioId);
-
-		return NextResponse.json({
-			success: true,
-			url: connectUrl,
-		});
+		return NextResponse.json(accountLink);
 	} catch (error) {
 		console.error(
-			'An error occurred when calling the Stripe API to create an account:',
+			'An error occurred when calling the Stripe API to create an account link:',
 			error
 		);
 	}
