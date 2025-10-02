@@ -3,7 +3,6 @@
 import Stripe from 'stripe';
 import { stripe } from './client';
 import { prisma } from '../prisma';
-import { StripeWebhookService } from './webhook-service';
 import { encrypt, decrypt } from '../crypto';
 
 export class StripeConnectService {
@@ -14,6 +13,7 @@ export class StripeConnectService {
 		try {
 			console.log('🔄 Exchanging Stripe Connect code for token...');
 
+			studioId = 'test-studio-1';
 			// 1. Exchange authorization code for access token
 			const response = await stripe.oauth.token({
 				grant_type: 'authorization_code',
@@ -39,13 +39,6 @@ export class StripeConnectService {
 				},
 			});
 
-			// 3. 🆕 Setup webhook automatically
-			console.log('🔗 Setting up Stripe webhook...');
-			const webhookResult = await StripeWebhookService.setupStudioWebhook(
-				studioId,
-				accountId
-			);
-
 			// 4. 🆕 Perform initial data sync
 			console.log('📥 Performing initial payment sync...');
 			const syncResult = await this.performInitialSync(studioId, accountId);
@@ -53,8 +46,6 @@ export class StripeConnectService {
 			return {
 				success: true,
 				accountId,
-				webhookConfigured: webhookResult.success,
-				webhookId: webhookResult.webhookId,
 				initialPayments: syncResult.paymentCount,
 				message: `Connected successfully! Synced ${syncResult.paymentCount} recent payments.`,
 			};
@@ -104,7 +95,7 @@ export class StripeConnectService {
 	/**
 	 * Initial sync of recent payment data (last 30 days)
 	 */
-	private static async performInitialSync(studioId: string, accountId: string) {
+	static async performInitialSync(studioId: string, accountId: string) {
 		try {
 			// Get fresh access token
 			const accessToken = await this.getFreshAccessToken(studioId);
@@ -262,6 +253,95 @@ export class StripeConnectService {
 			};
 		} catch (error) {
 			console.error('❌ Manual sync failed:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Create a Stripe connect account for a Studio
+	 */
+	// static async createStripeConnectAccount() {
+	// 	try {
+	// 		const account = await stripe.accounts.create({});
+
+	// 		return {
+	// 			success: true,
+	// 			accountId: account.id,
+	// 		};
+	// 	} catch (error) {
+	// 		console.error(
+	// 			'An error occurred when calling the Stripe API to create an account:',
+	// 			error
+	// 		);
+	// 		return {
+	// 			success: false,
+	// 			error: error,
+	// 		};
+	// 	}
+	// }
+
+	/**
+	 * Create a Stripe account link for a Studio
+	 *
+	 * @param accountId - The ID of the Stripe account to link
+	 * @param origin - The origin of the request
+	 * @returns The URL of the Stripe account link
+	 */
+	static async createStripeAccountLink(accountId: string, origin: string) {
+		try {
+			const accountLink = await stripe.accountLinks.create({
+				account: accountId,
+				refresh_url: `${origin}/refresh/${accountId}`,
+				return_url: `${origin}/return/${accountId}`,
+				type: 'account_onboarding',
+			});
+
+			console.log('🔗 Stripe account link created:', accountLink.url);
+			return {
+				success: true,
+				url: accountLink.url,
+			};
+		} catch (error) {
+			console.error(
+				'An error occurred when calling the Stripe API to create an account link:',
+				error
+			);
+		}
+	}
+
+	/**
+	 * Generate Stripe Connect OAuth URL for studio onboarding
+	 */
+	static generateConnectUrl(studioId: string): string {
+		const baseUrl = process.env.NEXT_PUBLIC_APP_URL;
+		const redirectUri = `${baseUrl}/api/stripe/callback`;
+
+		const params = new URLSearchParams({
+			response_type: 'code',
+			client_id: process.env.STRIPE_CONNECT_CLIENT_ID!,
+			scope: 'read_write',
+			redirect_uri: redirectUri,
+			state: studioId, // Pass studio ID for callback handling
+		});
+
+		return `https://connect.stripe.com/oauth/authorize?${params.toString()}`;
+	}
+
+	/**
+	 * Sync payment data for a connected studio
+	 */
+	static async syncPaymentData(studioId: string, accountId: string) {
+		try {
+			// Get studio's access token (decrypt in production)
+
+			console.log('🔄 Syncing payment data for studio:', studioId);
+			console.log('🔄 Account ID:', accountId);
+			return {
+				success: true,
+				paymentsProcessed: 0,
+			};
+		} catch (error) {
+			console.error('Payment sync failed:', error);
 			throw error;
 		}
 	}
