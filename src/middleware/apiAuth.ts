@@ -36,3 +36,7 @@ export async function validateStudioApiKey(request: NextRequest) {
 		return { error: 'Database error during authentication', status: 500 };
 	}
 }
+
+export const config = {
+	matcher: ['/dashboard/:path*', '/auth/:path*', '/onboarding/:path*'],
+};

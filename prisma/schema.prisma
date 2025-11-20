@@ -58,6 +58,7 @@ model Studio {
   ImportLog    ImportLog[]
   stripePayments     StripePayment[]
   matchedTransactions MatchedTransaction[]
+  studioMetrics      StudioMetrics[]
 
   @@map("studios")
 }
@@ -794,4 +795,35 @@ model MatchedTransaction {
   booking        Booking?      @relation(fields: [bookingId], references: [id])
 
   @@map("matched_transactions")
+}
+
+model StudioMetrics {
+  id        String   @id @default(cuid())
+  studioId  String
+  startDate DateTime // Start date of the metrics range
+  endDate   DateTime // End date of the metrics range
+
+  // Financial metrics
+  totalRevenue        Decimal @db.Decimal(10, 2)
+  totalProfit         Decimal @db.Decimal(10, 2)
+  processingFees      Decimal @db.Decimal(10, 2)
+  avgTransactionSize  Decimal @db.Decimal(10, 2)
+
+  // Operational metrics
+  totalBookings  Int
+  totalAttendees Int
+  utilizationRate Decimal @db.Decimal(5, 2) // Percentage (0-100)
+  profitPerCustomer Decimal @db.Decimal(10, 2)
+
+  // Cache metadata
+  calculatedAt DateTime @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  studio Studio @relation(fields: [studioId], references: [id], onDelete: Cascade)
+
+  @@unique([studioId, startDate, endDate])
+  @@map("studio_metrics")
 }

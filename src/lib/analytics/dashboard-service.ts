@@ -25,20 +25,30 @@ export class DashboardService {
 
 			// Get previous period for comparison
 			const daysDiff = Math.ceil(
-				(new Date(dateRange.end).getTime() -
-					new Date(dateRange.start).getTime()) /
+				(new Date(dateRange.end + 'T00:00:00.000Z').getTime() -
+					new Date(dateRange.start + 'T00:00:00.000Z').getTime()) /
 					(1000 * 60 * 60 * 24)
 			);
 
-			const prevStart = new Date(
-				new Date(dateRange.start).getTime() - daysDiff * 24 * 60 * 60 * 1000
+			// Calculate previous period dates
+			const startDate = new Date(dateRange.start + 'T00:00:00.000Z');
+			const prevStartDate = new Date(
+				startDate.getTime() - daysDiff * 24 * 60 * 60 * 1000
 			);
-			const prevEnd = new Date(dateRange.start);
+			const prevEndDate = new Date(startDate.getTime() - 24 * 60 * 60 * 1000); // Day before start
+
+			// Format dates as YYYY-MM-DD
+			const formatDate = (date: Date): string => {
+				const year = date.getFullYear();
+				const month = String(date.getMonth() + 1).padStart(2, '0');
+				const day = String(date.getDate()).padStart(2, '0');
+				return `${year}-${month}-${day}`;
+			};
 
 			const previousMetrics = await MetricsCalculator.calculateStudioMetrics(
 				studioId,
-				prevStart.toISOString(),
-				prevEnd.toISOString()
+				formatDate(prevStartDate),
+				formatDate(prevEndDate)
 			);
 
 			// Calculate percentage changes

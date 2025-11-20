@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { supabase } from '@/lib/supabase';
 
 export async function GET() {
 	try {
@@ -28,32 +27,66 @@ export async function GET() {
 export async function POST(request: NextRequest) {
 	try {
 		const body = await request.json();
-		const { email } = body;
+		const { email, firstName, lastName } = body;
 
-		if (!email) {
-			return NextResponse.json({ error: 'Email is required' }, { status: 400 });
+		// Validate required fields
+		if (!email || !firstName || !lastName) {
+			return NextResponse.json(
+				{ error: 'All fields are required' },
+				{ status: 400 }
+			);
 		}
 
-		// Example: Create user with Prisma
-		// const user = await prisma.user.create({
-		// 	data: {
-		// 		email,
-		// 		name,
-		// 	},
-		// });
+		// Validate email format
+		if (!/\S+@\S+\.\S+/.test(email)) {
+			return NextResponse.json(
+				{ error: 'Please enter a valid email address' },
+				{ status: 400 }
+			);
+		}
 
-		// Example: You could also use Supabase here for additional functionality
-		const { data, error } = await supabase.auth.admin.createUser({
-			email,
-			password: 'temporary-password',
-			email_confirm: true,
+		// Check if user already exists
+		const existingUser = await prisma.user.findUnique({
+			where: { email: email.toLowerCase().trim() },
 		});
-		console.error('Error creating user:', error);
-		return NextResponse.json(data, { status: 201 });
+
+		if (existingUser) {
+			return NextResponse.json(
+				{ error: 'An account with this email already exists' },
+				{ status: 409 }
+			);
+		}
+
+		// Create the user (password is handled by Supabase Auth)
+		const user = await prisma.user.create({
+			data: {
+				email: email.toLowerCase().trim(),
+				firstName: firstName.trim(),
+				lastName: lastName.trim(),
+			},
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
+				createdAt: true,
+			},
+		});
+
+		return NextResponse.json({ user }, { status: 201 });
 	} catch (error) {
 		console.error('Error creating user:', error);
+
+		// Handle Prisma unique constraint errors
+		if (error instanceof Error && error.message.includes('Unique constraint')) {
+			return NextResponse.json(
+				{ error: 'An account with this email already exists' },
+				{ status: 409 }
+			);
+		}
+
 		return NextResponse.json(
-			{ error: 'Failed to create user' + error },
+			{ error: 'Failed to create user' },
 			{ status: 500 }
 		);
 	}

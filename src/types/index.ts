@@ -169,7 +169,8 @@ export interface MatchedTransaction {
 // Analytics & Metrics
 export interface StudioMetrics {
 	studio_id: string;
-	date: string;
+	startDate: string; // YYYY-MM-DD format
+	endDate: string; // YYYY-MM-DD format
 	total_revenue: number;
 	total_profit: number;
 	total_bookings: number;
