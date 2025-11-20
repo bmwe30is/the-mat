@@ -92,6 +92,7 @@ export function useStudioData({
 		if (studioId) {
 			fetchData();
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [studioId, dateRange?.start, dateRange?.end]);
 
 	return {

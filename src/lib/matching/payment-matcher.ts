@@ -74,7 +74,7 @@ export class PaymentMatchingService {
 			},
 		});
 
-		return payments as StripePayment[];
+		return payments as unknown as StripePayment[];
 	}
 
 	/**

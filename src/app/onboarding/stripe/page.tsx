@@ -23,9 +23,10 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({
 	const [isConnecting, setIsConnecting] = useState(false);
 	const [isSyncing, setIsSyncing] = useState(false);
 	const [copiedUrl, setCopiedUrl] = useState(false);
-	const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
-	const [accountLinkCreatePending, setAccountLinkCreatePending] =
-		useState(false);
+
+	// const [stripeAccountId, setStripeAccountId] = useState<string | null>(null);
+	// const [accountLinkCreatePending, setAccountLinkCreatePending] =
+	// 	useState(false);
 
 	useEffect(() => {
 		fetchIntegrationStatus();
@@ -76,37 +77,37 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({
 		}
 	};
 
-	const handleStripeAccountLink = async () => {
-		try {
-			setAccountLinkCreatePending(true);
+	// const handleStripeAccountLink = async () => {
+	// 	try {
+	// 		setAccountLinkCreatePending(true);
 
-			// Get Stripe Connect URL
-			const response = await fetch('/api/stripe/accountLink', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ account: stripeAccountId }),
-			});
+	// 		// Get Stripe Connect URL
+	// 		const response = await fetch('/api/stripe/accountLink', {
+	// 			method: 'POST',
+	// 			headers: { 'Content-Type': 'application/json' },
+	// 			body: JSON.stringify({ account: stripeAccountId }),
+	// 		});
 
-			const data = await response.json();
+	// 		const data = await response.json();
 
-			if (data.success) {
-				setAccountLinkCreatePending(false);
+	// 		if (data.success) {
+	// 			setAccountLinkCreatePending(false);
 
-				if (data.url) {
-					window.location.href = data.url;
-				}
-			} else {
-				throw new Error(
-					data.error?.message || 'Failed to generate Stripe Connect Account'
-				);
-			}
-		} catch (error) {
-			console.error('Stripe connection error:', error);
-			alert('Failed to connect to Stripe. Please try again.');
-		} finally {
-			setIsConnecting(false);
-		}
-	};
+	// 			if (data.url) {
+	// 				window.location.href = data.url;
+	// 			}
+	// 		} else {
+	// 			throw new Error(
+	// 				data.error?.message || 'Failed to generate Stripe Connect Account'
+	// 			);
+	// 		}
+	// 	} catch (error) {
+	// 		console.error('Stripe connection error:', error);
+	// 		alert('Failed to connect to Stripe. Please try again.');
+	// 	} finally {
+	// 		setIsConnecting(false);
+	// 	}
+	// };
 
 	const handleSyncPayments = async () => {
 		if (!status.stripe.accountId) return;

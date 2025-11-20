@@ -2,13 +2,13 @@
 // STUDIO ROUTING & DASHBOARD API ROUTES
 // ============================================================================
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 // app/api/studios/route.ts - Get studios for user switching
-export async function GET(request: NextRequest) {
+export async function GET() {
 	try {
 		// Get authenticated user from session
 		const cookieStore = await cookies();

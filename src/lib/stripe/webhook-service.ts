@@ -297,7 +297,7 @@ export class StripeWebhookService {
 			//   },
 			// });
 		} catch (error) {
-			console.error('Failed to update webhook status:', errorMessage);
+			console.error('Failed to update webhook status:', errorMessage || error);
 		}
 	}
 

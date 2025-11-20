@@ -28,6 +28,7 @@ const StripeSyncManager: React.FC<StripeSyncManagerProps> = ({ studioId }) => {
 
 	useEffect(() => {
 		fetchSyncStatus();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [studioId]);
 
 	const fetchSyncStatus = async () => {
