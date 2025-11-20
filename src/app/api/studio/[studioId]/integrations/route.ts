@@ -1,13 +1,13 @@
 // app/api/studio/[studioId]/integrations/route.ts - Integration status API
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
-import { validateStudioApiKey } from '@/middleware/apiAuth';
+// import { validateStudioApiKey } from '@/middleware/apiAuth';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
 export async function GET(
 	request: NextRequest,
-	params: Promise<{ studioId: string }>
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
 		const { studioId } = await params;

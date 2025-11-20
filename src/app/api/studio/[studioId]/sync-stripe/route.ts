@@ -6,10 +6,10 @@ import { prisma } from '@/lib/prisma';
 
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { studioId: string } }
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
-		const studioId = params.studioId;
+		const { studioId } = await params;
 		const { daysBack } = await request.json();
 
 		// Validate studio access (basic auth check)
@@ -68,10 +68,10 @@ export async function POST(
 // GET endpoint to check sync status
 export async function GET(
 	request: NextRequest,
-	{ params }: { params: { studioId: string } }
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
-		const studioId = params.studioId;
+		const { studioId } = await params;
 
 		// Get studio sync status
 		const studio = await prisma.studio.findUnique({

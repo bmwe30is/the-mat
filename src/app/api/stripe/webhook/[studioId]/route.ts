@@ -5,10 +5,10 @@ import { StripeWebhookService } from '@/lib/stripe/webhook-service';
 
 export async function POST(
 	request: NextRequest,
-	{ params }: { params: { studioId: string } }
+	{ params }: { params: Promise<{ studioId: string }> }
 ) {
 	try {
-		const studioId = params.studioId;
+		const { studioId } = await params;
 		const signature = request.headers.get('stripe-signature');
 		const body = await request.text();
 
@@ -38,8 +38,9 @@ export async function POST(
 
 		console.log('✅ Stripe webhook processed successfully:', event.id);
 
+		const { success } = result;
 		return NextResponse.json({
-			success: true,
+			success: success,
 			eventId: event.id,
 		});
 	} catch (error) {

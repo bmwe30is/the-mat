@@ -18,5 +18,9 @@ export async function POST(request: NextRequest) {
 			'An error occurred when calling the Stripe API to create an account:',
 			error
 		);
+		return NextResponse.json(
+			{ success: false, error: 'Failed to create account link' },
+			{ status: 500 }
+		);
 	}
 }

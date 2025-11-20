@@ -15,7 +15,7 @@ export function useCurrentStudio() {
 	useEffect(() => {
 		const fetchStudio = async () => {
 			try {
-				const studioId = params.studioId as string;
+				const studioId = params?.studioId as string;
 
 				if (!studioId) {
 					router.push('/onboarding/studio');
@@ -44,7 +44,8 @@ export function useCurrentStudio() {
 		};
 
 		fetchStudio();
-	}, [params.studioId]);
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [params?.studioId]);
 
 	return { studio, isLoading };
 }

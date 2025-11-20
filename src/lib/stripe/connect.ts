@@ -40,7 +40,7 @@ export class StripeConnectService {
 
 			// 4. 🆕 Perform initial data sync
 			console.log('📥 Performing initial payment sync...');
-			const syncResult = await this.performInitialSync(studioId, accountId);
+			const syncResult = await this.performInitialSync(studioId);
 
 			return {
 				success: true,
@@ -94,7 +94,7 @@ export class StripeConnectService {
 	/**
 	 * Initial sync of recent payment data (last 30 days)
 	 */
-	static async performInitialSync(studioId: string, accountId: string) {
+	static async performInitialSync(studioId: string) {
 		try {
 			// Get fresh access token
 			const accessToken = await this.getFreshAccessToken(studioId);

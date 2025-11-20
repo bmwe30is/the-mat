@@ -3,10 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
 	CheckCircle,
-	AlertCircle,
 	ExternalLink,
-	Copy,
-	Zap,
 	CreditCard,
 	Settings,
 	RefreshCw,
@@ -45,6 +42,7 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({
 
 	useEffect(() => {
 		fetchIntegrationStatus();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [studioId]);
 
 	const fetchIntegrationStatus = async () => {
@@ -366,8 +364,8 @@ const IntegrationSetup: React.FC<IntegrationSetupProps> = ({
 						Need Help?
 					</h3>
 					<p className="text-gray-600 mb-4">
-						Our team is here to help you get set up quickly. Don't hesitate to
-						reach out if you run into any issues.
+						Our team is here to help you get set up quickly. Don&apos;t hesitate
+						to reach out if you run into any issues.
 					</p>
 					<div className="flex space-x-4">
 						<a

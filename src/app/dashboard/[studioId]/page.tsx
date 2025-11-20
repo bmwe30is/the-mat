@@ -18,7 +18,9 @@ export default async function DashboardPage({
 		<Suspense fallback={<DashboardSkeleton />}>
 			<StudioDashboard
 				studioId={studioId}
-				initialDateRange={dateRange as string}
+				initialDateRange={
+					dateRange as unknown as { start: string; end: string }
+				}
 			/>
 		</Suspense>
 	);
