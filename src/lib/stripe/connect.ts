@@ -13,7 +13,6 @@ export class StripeConnectService {
 		try {
 			console.log('🔄 Exchanging Stripe Connect code for token...');
 
-			studioId = 'test-studio-1';
 			// 1. Exchange authorization code for access token
 			const response = await stripe.oauth.token({
 				grant_type: 'authorization_code',

@@ -1,16 +1,11 @@
-// ============================================================================
-// STUDIO ROUTING & DASHBOARD API ROUTES
-// ============================================================================
-
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
+import { prisma } from '@/lib/prisma';
 
-// app/api/studios/route.ts - Get studios for user switching
-export async function GET(request: NextRequest) {
+export async function GET() {
 	try {
-		// Get authenticated user from session
+		// Create Supabase client with session from cookies
 		const cookieStore = await cookies();
 		const supabase = createServerClient(
 			process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -51,19 +46,11 @@ export async function GET(request: NextRequest) {
 		// Find user in Prisma database by email
 		const user = await prisma.user.findUnique({
 			where: { email: supabaseUser.email.toLowerCase().trim() },
-			include: {
-				studioUsers: {
-					include: {
-						studio: {
-							select: {
-								id: true,
-								name: true,
-								slug: true,
-								logo: true,
-							},
-						},
-					},
-				},
+			select: {
+				id: true,
+				email: true,
+				firstName: true,
+				lastName: true,
 			},
 		});
 
@@ -74,19 +61,9 @@ export async function GET(request: NextRequest) {
 			);
 		}
 
-		const studios = user.studioUsers.map((su) => ({
-			...su.studio,
-			role: su.role,
-		}));
-
-		return NextResponse.json({ studios });
+		return NextResponse.json({ user });
 	} catch (error) {
-		return NextResponse.json(
-			{
-				error:
-					error instanceof Error ? error.message : 'Unknown error occurred',
-			},
-			{ status: 500 }
-		);
+		console.error('Get user error:', error);
+		return NextResponse.json({ error: 'Failed to get user' }, { status: 500 });
 	}
 }
